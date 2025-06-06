@@ -42,6 +42,7 @@ void ADBDSurvivor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	FindInteratable();
 }
 
 void ADBDSurvivor::NotifyControllerChanged()
@@ -49,9 +50,9 @@ void ADBDSurvivor::NotifyControllerChanged()
 	Super::NotifyControllerChanged();
 
 	// Add input mapping context
-	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+	if (APlayerController* PC = Cast<APlayerController>(Controller))
 	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
@@ -77,6 +78,11 @@ void ADBDSurvivor::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void ADBDSurvivor::Move(const FInputActionValue& Value)
 {
+	if (bIsInteracting || bIsActing)
+	{
+		return;
+	}
+
 	const FVector2D MovementValue = Value.Get<FVector2D>();
 
 	const FRotator ControllerRotation = Controller->GetControlRotation();
@@ -99,6 +105,11 @@ void ADBDSurvivor::Look(const FInputActionValue& Value)
 
 void ADBDSurvivor::HandleCrouch(const FInputActionValue& Value)
 {
+	if (bIsInteracting || bIsActing)
+	{
+		return;
+	}
+
 	if (Value.Get<bool>())
 	{
 		Crouch();
@@ -111,6 +122,11 @@ void ADBDSurvivor::HandleCrouch(const FInputActionValue& Value)
 
 void ADBDSurvivor::Sprint(const FInputActionValue& Value)
 {
+	if (bIsInteracting || bIsActing)
+	{
+		return;
+	}
+
 	bIsSprinting = Value.Get<bool>();
 	if (bIsSprinting && !bIsCrouched)
 	{
@@ -128,4 +144,25 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 
 void ADBDSurvivor::Action(const FInputActionValue& Value)
 {
+}
+
+void ADBDSurvivor::FindInteratable()
+{
+	FVector LineTraceStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
+	FVector LineTraceEnd = (Camera->GetForwardVector() * 400) + LineTraceStart;
+
+	FHitResult HitResult;
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, LineTraceStart, LineTraceEnd, ECollisionChannel::ECC_Visibility))
+	{
+		if (HitResult.GetActor())
+		{
+			if (ADBDGeneratorActor* HitGenerator = Cast<ADBDGeneratorActor>(HitResult.GetActor()))
+			{
+				if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+				{
+					PC->ShowIneractionMessage("Press M1 to repair the generator");
+				}
+			}
+		}
+	}
 }

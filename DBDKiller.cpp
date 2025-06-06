@@ -20,6 +20,9 @@ ADBDKiller::ADBDKiller()
 	Camera->SetupAttachment(RootComponent);
 	Camera->SetRelativeLocation(FVector(20.0f, 0.0f, 70.0f));
 	Camera->bUsePawnControlRotation = true;
+
+	// Mesh config
+	GetMesh()->SetOwnerNoSee(true);
 }
 
 // Called when the game starts or when spawned
@@ -41,9 +44,9 @@ void ADBDKiller::NotifyControllerChanged()
 	Super::NotifyControllerChanged();
 
 	// Add input mapping context
-	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+	if (APlayerController* PC = Cast<APlayerController>(Controller))
 	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}

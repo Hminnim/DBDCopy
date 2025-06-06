@@ -10,6 +10,8 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
+#include "DBDGeneratorActor.h"
+#include "DBDPlayerController.h" 
 #include "DBDSurvivor.generated.h"
 
 class UInputMappingContext;
@@ -70,11 +72,14 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"));
 	UInputAction* ActionInput;
 
-	// Survivor action function
+	// Survivor input action function
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void HandleCrouch(const FInputActionValue& Value);
 	void Sprint(const FInputActionValue& Value);
 	void Interact(const FInputActionValue& Value);
 	void Action(const FInputActionValue& Value);
+
+	// Survivor intreact function
+	void FindInteratable();
 };
