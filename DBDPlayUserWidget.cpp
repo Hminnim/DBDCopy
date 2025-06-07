@@ -23,3 +23,14 @@ void UDBDPlayUserWidget::HideInteractionMessge()
 {
 	InteractionTextBlock->SetVisibility(ESlateVisibility::Hidden);
 }
+
+void UDBDPlayUserWidget::ShowInteractionProgress(float Value)
+{
+	InteractionProgressBar->SetVisibility(ESlateVisibility::Visible);
+	InteractionProgressBar->SetPercent(Value / 100.0f);
+}
+
+void UDBDPlayUserWidget::HideInteractionProgress()
+{
+	InteractionProgressBar->SetVisibility(ESlateVisibility::Hidden);
+}

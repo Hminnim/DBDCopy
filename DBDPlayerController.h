@@ -21,6 +21,8 @@ public:
 
 	void ShowIneractionMessage(FString Message);
 	void HideInteractionMessage();
+	void ShowInteractionProgress(float Value);
+	void HideInteractionProgress();
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")

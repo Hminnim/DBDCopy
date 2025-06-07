@@ -43,6 +43,17 @@ void ADBDSurvivor::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	FindInteratable();
+
+	if (CurrentInteractionState == ESurvivorInteraction::Repair && bIsInteracting)
+	{
+		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		{
+			if (CurrentGenerator)
+			{
+				PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
+			}
+		}
+	}
 }
 
 void ADBDSurvivor::NotifyControllerChanged()
@@ -140,6 +151,22 @@ void ADBDSurvivor::Sprint(const FInputActionValue& Value)
 
 void ADBDSurvivor::Interact(const FInputActionValue& Value)
 {
+	if (CurrentInteractionState == ESurvivorInteraction::Idle)
+	{
+		return;
+	}
+
+	if (CurrentInteractionState == ESurvivorInteraction::Repair)
+	{
+		if (Value.Get<bool>())
+		{
+			StartRepairGenerator();
+		}
+		else
+		{
+			StopReapirGenerator();
+		}
+	}
 }
 
 void ADBDSurvivor::Action(const FInputActionValue& Value)
@@ -148,11 +175,18 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 
 void ADBDSurvivor::FindInteratable()
 {
-	FVector LineTraceStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
-	FVector LineTraceEnd = (Camera->GetForwardVector() * 400) + LineTraceStart;
+	if (bIsInteracting || bIsActing)
+	{
+		return;
+	}
 
+	FVector LineTraceStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
+	FVector LineTraceEnd = (Camera->GetForwardVector() * 300) + LineTraceStart;
 	FHitResult HitResult;
-	if (GetWorld()->LineTraceSingleByChannel(HitResult, LineTraceStart, LineTraceEnd, ECollisionChannel::ECC_Visibility))
+	FCollisionQueryParams TraceParams;
+	TraceParams.AddIgnoredActor(this);
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, LineTraceStart, LineTraceEnd, ECollisionChannel::ECC_Visibility, TraceParams))
 	{
 		if (HitResult.GetActor())
 		{
@@ -160,9 +194,40 @@ void ADBDSurvivor::FindInteratable()
 			{
 				if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
 				{
+					CurrentInteractionState = ESurvivorInteraction::Repair;
+					CurrentGenerator = HitGenerator;
 					PC->ShowIneractionMessage("Press M1 to repair the generator");
+					PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
+					return;
 				}
 			}
 		}
 	}
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		CurrentInteractionState = ESurvivorInteraction::Idle;
+		PC->HideInteractionMessage();
+		PC->HideInteractionProgress();
+	}
+}
+
+void ADBDSurvivor::StartRepairGenerator()
+{
+	if (!CurrentGenerator || CurrentInteractionState != ESurvivorInteraction::Repair)
+	{
+		return;
+	}
+
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->HideInteractionMessage();
+	}
+	bIsInteracting = true;
+	CurrentGenerator->CurrentRepairingSurvivor++;
+}
+
+void ADBDSurvivor::StopReapirGenerator()
+{
+	bIsInteracting = false;
+	CurrentGenerator->CurrentRepairingSurvivor--;
 }

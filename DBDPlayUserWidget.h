@@ -21,6 +21,8 @@ public:
 
 	void ShowInteractionMessage(FString Message);
 	void HideInteractionMessge();
+	void ShowInteractionProgress(float Value);
+	void HideInteractionProgress();
 
 protected:
 	// Bind widget

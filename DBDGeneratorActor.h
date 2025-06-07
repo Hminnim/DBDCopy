@@ -15,12 +15,18 @@ public:
 	// Sets default values for this actor's properties
 	ADBDGeneratorActor();
 
-protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
-
-public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	// Generator value
+	float CurrentRepairRate = 0.0f;
+	int8 CurrentRepairingSurvivor = 0;
+	float RateSpeed[5] = { 0.0f, 1.25f, 2.125f, 2.625f, 2.75f };
+
+protected:
+	// Called when the game starts or when spawned
+	virtual void BeginPlay() override;
+	
+private:
+	void Repairing(float DeltaTime);
 };

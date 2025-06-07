@@ -18,10 +18,16 @@ void ADBDGeneratorActor::BeginPlay()
 	
 }
 
+void ADBDGeneratorActor::Repairing(float DeltaTime)
+{
+	CurrentRepairRate += RateSpeed[CurrentRepairingSurvivor] * DeltaTime;
+}
+
 // Called every frame
 void ADBDGeneratorActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	Repairing(DeltaTime);
 }
 

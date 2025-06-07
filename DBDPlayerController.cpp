@@ -35,3 +35,19 @@ void ADBDPlayerController::HideInteractionMessage()
 		PlayUserWidget->HideInteractionMessge();
 	}
 }
+
+void ADBDPlayerController::ShowInteractionProgress(float Value)
+{
+	if (PlayUserWidget)
+	{
+		PlayUserWidget->ShowInteractionProgress(Value);
+	}
+}
+
+void ADBDPlayerController::HideInteractionProgress()
+{
+	if (PlayUserWidget)
+	{
+		PlayUserWidget->HideInteractionProgress();
+	}
+}

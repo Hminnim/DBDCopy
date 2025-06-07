@@ -82,4 +82,17 @@ private:
 
 	// Survivor intreact function
 	void FindInteratable();
+	void StartRepairGenerator();
+	void StopReapirGenerator();
+
+	// Survivor interaction enum
+	enum class ESurvivorInteraction
+	{
+		Idle,
+		Repair,
+		Heal
+	};
+	ESurvivorInteraction CurrentInteractionState = ESurvivorInteraction::Idle;
+
+	ADBDGeneratorActor* CurrentGenerator;
 };
