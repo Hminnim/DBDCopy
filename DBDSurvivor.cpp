@@ -217,17 +217,38 @@ void ADBDSurvivor::StartRepairGenerator()
 	{
 		return;
 	}
-
 	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
 	{
 		PC->HideInteractionMessage();
 	}
+
+	// Find closest location to repair
+	FVector RepairLocation = CurrentGenerator->RepairLocation[0];
+	double MinDistance = FVector::Distance(GetActorLocation(), RepairLocation);
+	for (int i = 1; i < 4; i++) 
+	{
+		double NextDistance = FVector::Distance(GetActorLocation(), CurrentGenerator->RepairLocation[i]);
+		if (MinDistance > NextDistance)
+		{
+			RepairLocation = CurrentGenerator->RepairLocation[i];
+			MinDistance = NextDistance;
+		}
+	}
+	RepairLocation.Z = GetActorLocation().Z;
+	SetActorLocation(RepairLocation, false);
+	
+	// Set rotation to generator
+	FRotator RepairRotation = (CurrentGenerator->GetActorLocation() - GetActorLocation()).Rotation();
+	RepairRotation.Pitch = 0.0f;
+	RepairRotation.Roll = 0.0f;
+	SetActorRotation(RepairRotation);
+
 	bIsInteracting = true;
-	CurrentGenerator->CurrentRepairingSurvivor++;
+	CurrentGenerator->CurrentRepairingSurvivor = FMath::Clamp(++CurrentGenerator->CurrentRepairingSurvivor, 0, 4);
 }
 
 void ADBDSurvivor::StopReapirGenerator()
 {
 	bIsInteracting = false;
-	CurrentGenerator->CurrentRepairingSurvivor--;
+	CurrentGenerator->CurrentRepairingSurvivor = FMath::Clamp(--CurrentGenerator->CurrentRepairingSurvivor, 0, 4);
 }

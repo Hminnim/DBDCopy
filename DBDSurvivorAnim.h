@@ -28,6 +28,8 @@ public:
 	float SurvivorSpeed;
 	UPROPERTY(BlueprintReadWrite)
 	bool bIsCrouched;
+	UPROPERTY(BlueprintReadWrite)
+	bool bIsInteracting;
 
 protected:
 	UPROPERTY(BlueprintReadWrite)

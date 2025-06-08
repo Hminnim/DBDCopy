@@ -20,13 +20,17 @@ public:
 
 	// Generator value
 	float CurrentRepairRate = 0.0f;
-	int8 CurrentRepairingSurvivor = 0;
+	int32 CurrentRepairingSurvivor = 0;
 	float RateSpeed[5] = { 0.0f, 1.25f, 2.125f, 2.625f, 2.75f };
+	FVector RepairLocation[4];
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
+	UStaticMeshComponent* MeshComponent;
+
 private:
 	void Repairing(float DeltaTime);
 };
