@@ -43,16 +43,21 @@ void ADBDGeneratorActor::BeginPlay()
 			RepairLocation[i] = SocketLocation;
 		}
 	}
-	for (int32 i = 0; i < 4; ++i)
-	{
-		FString Msg = FString::Printf(TEXT("RepairLocation[%d] = %s"), i, *RepairLocation[i].ToString());
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, Msg);
-	}
 }
 
 void ADBDGeneratorActor::Repairing(float DeltaTime)
 {
+	if (bIsRepaired)
+	{
+		return;
+	}
+
 	CurrentRepairRate += RateSpeed[CurrentRepairingSurvivor] * DeltaTime;
+
+	if (CurrentRepairRate >= 100.0f)
+	{
+		bIsRepaired = true;
+	}
 }
 
 // Called every frame

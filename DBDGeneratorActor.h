@@ -23,6 +23,7 @@ public:
 	int32 CurrentRepairingSurvivor = 0;
 	float RateSpeed[5] = { 0.0f, 1.25f, 2.125f, 2.625f, 2.75f };
 	FVector RepairLocation[4];
+	bool bIsRepaired = false;
 
 protected:
 	// Called when the game starts or when spawned

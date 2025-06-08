@@ -44,6 +44,7 @@ void ADBDSurvivor::Tick(float DeltaTime)
 
 	FindInteratable();
 
+	// Handling repairing
 	if (CurrentInteractionState == ESurvivorInteraction::Repair && bIsInteracting)
 	{
 		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
@@ -51,6 +52,11 @@ void ADBDSurvivor::Tick(float DeltaTime)
 			if (CurrentGenerator)
 			{
 				PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
+
+				if (CurrentGenerator->bIsRepaired)
+				{
+					StopReapirGenerator();
+				}
 			}
 		}
 	}
@@ -194,6 +200,11 @@ void ADBDSurvivor::FindInteratable()
 			{
 				if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
 				{
+					if (HitGenerator->bIsRepaired)
+					{
+						return;
+					}
+
 					CurrentInteractionState = ESurvivorInteraction::Repair;
 					CurrentGenerator = HitGenerator;
 					PC->ShowIneractionMessage("Press M1 to repair the generator");
