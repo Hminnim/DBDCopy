@@ -256,6 +256,11 @@ void ADBDSurvivor::StartRepairGenerator()
 
 	bIsInteracting = true;
 	CurrentGenerator->CurrentRepairingSurvivor = FMath::Clamp(++CurrentGenerator->CurrentRepairingSurvivor, 0, 4);
+
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->ShowSkillCheck();
+	}
 }
 
 void ADBDSurvivor::StopReapirGenerator()

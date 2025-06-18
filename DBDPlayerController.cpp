@@ -7,12 +7,22 @@ void ADBDPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Widget class setting
 	if (PlayUserWidgetClass)
 	{
 		PlayUserWidget = CreateWidget<UDBDPlayUserWidget>(this, PlayUserWidgetClass);
 		if (PlayUserWidget)
 		{
 			PlayUserWidget->AddToViewport(0);
+		}
+	}
+	if (SkillCheckWidgetClass)
+	{
+		SkillCheckWidget = CreateWidget<UDBDSkillCheckUserWidget>(this, SkillCheckWidgetClass);
+		if (SkillCheckWidget)
+		{
+			SkillCheckWidget->AddToViewport(1);
+			SkillCheckWidget->SetVisibility(ESlateVisibility::Hidden);
 		}
 	}
 
@@ -50,4 +60,36 @@ void ADBDPlayerController::HideInteractionProgress()
 	{
 		PlayUserWidget->HideInteractionProgress();
 	}
+}
+
+void ADBDPlayerController::ShowSkillCheck()
+{
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		SkillCheckTimerHandle,
+		this,
+		&ADBDPlayerController::StartSkillCheck,
+		0.5f,
+		false
+	);
+}
+
+void ADBDPlayerController::StartSkillCheck()
+{
+	if (AlertSound)
+	{
+		UGameplayStatics::PlaySound2D(this, AlertSound);
+	}
+
+	if (SkillCheckWidget)
+	{
+		SkillCheckWidget->SetVisibility(ESlateVisibility::Visible);
+		SkillCheckWidget->SetGeneratorSkillCheck();
+		SkillCheckWidget->StartPointerMove();
+	}
+}
+
+void ADBDPlayerController::HideSkillCheck()
+{
+	SkillCheckWidget->SetVisibility(ESlateVisibility::Hidden);
 }
