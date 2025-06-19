@@ -28,15 +28,17 @@ public:
 	void HideInteractionMessage();
 	void ShowInteractionProgress(float Value);
 	void HideInteractionProgress();
-	UFUNCTION()
 	void ShowSkillCheck();
 	UFUNCTION()
 	void StartSkillCheck();
-	UFUNCTION()
 	void HideSkillCheck();
+	void StopSkillCheck();
+	int8 GetSkillCheckResult();
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sound")
 	USoundBase* AlertSound;
+
+	bool bIsSkillChecking = false;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")

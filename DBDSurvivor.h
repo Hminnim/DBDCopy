@@ -4,11 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputLibrary.h"
-#include "GameFramework/SpringArmComponent.h"
-#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Camera/CameraComponent.h"
 #include "DBDGeneratorActor.h"
 #include "DBDPlayerController.h" 
@@ -84,6 +85,9 @@ private:
 	void FindInteratable();
 	void StartRepairGenerator();
 	void StopReapirGenerator();
+	void HandleSkillCheck(int8 Type);
+	UFUNCTION()
+	void TryTriggerSkillCheck();
 
 	// Survivor interaction enum
 	enum class ESurvivorInteraction
@@ -95,4 +99,5 @@ private:
 	ESurvivorInteraction CurrentInteractionState = ESurvivorInteraction::Idle;
 
 	ADBDGeneratorActor* CurrentGenerator;
+	FTimerHandle SkillCheckTimer;
 };

@@ -177,6 +177,17 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 
 void ADBDSurvivor::Action(const FInputActionValue& Value)
 {
+	if (CurrentInteractionState == ESurvivorInteraction::Repair)
+	{
+		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		{
+			if (PC->bIsSkillChecking)
+			{
+				HandleSkillCheck(PC->GetSkillCheckResult());
+			}
+		}
+	}
+
 }
 
 void ADBDSurvivor::FindInteratable()
@@ -257,14 +268,78 @@ void ADBDSurvivor::StartRepairGenerator()
 	bIsInteracting = true;
 	CurrentGenerator->CurrentRepairingSurvivor = FMath::Clamp(++CurrentGenerator->CurrentRepairingSurvivor, 0, 4);
 
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
-	{
-		PC->ShowSkillCheck();
-	}
+	// Try trigger skillcheck
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		SkillCheckTimer,
+		this,
+		&ADBDSurvivor::TryTriggerSkillCheck,
+		1.0f,
+		true,
+		1.0f
+	);
 }
 
 void ADBDSurvivor::StopReapirGenerator()
 {
 	bIsInteracting = false;
 	CurrentGenerator->CurrentRepairingSurvivor = FMath::Clamp(--CurrentGenerator->CurrentRepairingSurvivor, 0, 4);
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		if (PC->bIsSkillChecking)
+		{
+			PC->StopSkillCheck();
+		}
+	}
+	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTimer);
+}
+
+void ADBDSurvivor::HandleSkillCheck(int8 Type)
+{
+	// Great skill check
+	if (Type == int8(0))
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Great skill check")));
+
+		if (CurrentGenerator != nullptr && CurrentInteractionState == ESurvivorInteraction::Repair)
+		{
+			CurrentGenerator->CurrentRepairRate = FMath::Clamp(CurrentGenerator->CurrentRepairRate + 1.0f, 0.0f, 100.0f);;
+		}
+	}
+	// Good skill check
+	if (Type == int8(1))
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Good skill check")));
+	}
+	// Failed skill check
+	if (Type == int8(2))
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Failed skill check")));
+
+		if (CurrentGenerator != nullptr && CurrentInteractionState == ESurvivorInteraction::Repair)
+		{
+			CurrentGenerator->CurrentRepairRate = FMath::Clamp(CurrentGenerator->CurrentRepairRate - 10.0f, 0.0f, 100.0f);;
+		}
+	}
+}
+
+void ADBDSurvivor::TryTriggerSkillCheck()
+{
+	ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController());
+	if (PC)
+	{
+		if (PC->bIsSkillChecking)
+		{
+			return;
+		}
+	}
+
+	float Chance = FMath::FRand(); // 0.0 ~ 1.0
+	if (Chance < 0.08)
+	{
+		if (PC)
+		{
+			PC->ShowSkillCheck();
+		}
+	}
 }

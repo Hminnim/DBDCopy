@@ -64,6 +64,13 @@ void ADBDPlayerController::HideInteractionProgress()
 
 void ADBDPlayerController::ShowSkillCheck()
 {
+	if (AlertSound)
+	{
+		UGameplayStatics::PlaySound2D(this, AlertSound);
+	}
+
+	bIsSkillChecking = true;
+
 	GetWorld()->GetTimerManager().SetTimer
 	(
 		SkillCheckTimerHandle,
@@ -76,20 +83,50 @@ void ADBDPlayerController::ShowSkillCheck()
 
 void ADBDPlayerController::StartSkillCheck()
 {
-	if (AlertSound)
-	{
-		UGameplayStatics::PlaySound2D(this, AlertSound);
-	}
-
 	if (SkillCheckWidget)
 	{
 		SkillCheckWidget->SetVisibility(ESlateVisibility::Visible);
 		SkillCheckWidget->SetGeneratorSkillCheck();
 		SkillCheckWidget->StartPointerMove();
+
+		GetWorld()->GetTimerManager().SetTimer
+		(
+			SkillCheckTimerHandle,
+			this,
+			&ADBDPlayerController::StopSkillCheck,
+			1.1f,
+			false
+		);
 	}
 }
 
 void ADBDPlayerController::HideSkillCheck()
 {
 	SkillCheckWidget->SetVisibility(ESlateVisibility::Hidden);
+	bIsSkillChecking = false;
+}
+
+void ADBDPlayerController::StopSkillCheck()
+{
+	if (SkillCheckWidget)
+	{
+		SkillCheckWidget->StopPointerMove();
+		HideSkillCheck();
+	}
+
+	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTimerHandle);
+}
+
+int8 ADBDPlayerController::GetSkillCheckResult()
+{
+	StopSkillCheck();
+
+	if (SkillCheckWidget)
+	{
+		return SkillCheckWidget->GetSkillCheckResult();
+	}
+	else
+	{
+		return int8(2);
+	}
 }

@@ -80,16 +80,6 @@ void UDBDSkillCheckUserWidget::StartPointerMove()
 
 	bIsMoving = true;
 	AngleElapsed = 0.0f;
-
-	// Pointer will move 1.1 second
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		SkillCheckTimerHandle,
-		this,
-		&UDBDSkillCheckUserWidget::StopPointerMove,
-		1.1f,
-		false
-	);
 }
 
 void UDBDSkillCheckUserWidget::StopPointerMove()
