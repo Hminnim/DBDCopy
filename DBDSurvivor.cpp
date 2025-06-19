@@ -289,6 +289,7 @@ void ADBDSurvivor::StopReapirGenerator()
 		if (PC->bIsSkillChecking)
 		{
 			PC->StopSkillCheck();
+			HandleSkillCheck(int8(2));
 		}
 	}
 	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTimer);
