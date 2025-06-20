@@ -30,6 +30,22 @@ ADBDSurvivor::ADBDSurvivor()
 	Camera->bUsePawnControlRotation = false;
 }
 
+void ADBDSurvivor::BeginOverlapWindow()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->ShowActionMessage("Press Space to Vault");
+	}
+}
+
+void ADBDSurvivor::EndOverlapWindow()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->HideActionMessage();
+	}
+}
+
 // Called when the game starts or when spawned
 void ADBDSurvivor::BeginPlay()
 {

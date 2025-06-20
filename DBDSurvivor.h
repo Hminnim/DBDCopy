@@ -41,6 +41,10 @@ public:
 	bool bIsInteracting = false;
 	bool bIsActing = false;
 
+	// To vault window
+	void BeginOverlapWindow();
+	void EndOverlapWindow();
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;

@@ -62,6 +62,22 @@ void ADBDPlayerController::HideInteractionProgress()
 	}
 }
 
+void ADBDPlayerController::ShowActionMessage(FString Message)
+{
+	if (PlayUserWidget)
+	{
+		PlayUserWidget->ShowActionMessage(Message);
+	}
+}
+
+void ADBDPlayerController::HideActionMessage()
+{
+	if (PlayUserWidget)
+	{
+		PlayUserWidget->HideActionMessage();
+	}
+}
+
 void ADBDPlayerController::ShowSkillCheck()
 {
 	if (AlertSound)

@@ -28,6 +28,8 @@ public:
 	void HideInteractionMessage();
 	void ShowInteractionProgress(float Value);
 	void HideInteractionProgress();
+	void ShowActionMessage(FString Message);
+	void HideActionMessage();
 	void ShowSkillCheck();
 	UFUNCTION()
 	void StartSkillCheck();

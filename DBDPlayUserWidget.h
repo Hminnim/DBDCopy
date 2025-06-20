@@ -23,6 +23,8 @@ public:
 	void HideInteractionMessge();
 	void ShowInteractionProgress(float Value);
 	void HideInteractionProgress();
+	void ShowActionMessage(FString Message);
+	void HideActionMessage();
 
 protected:
 	// Bind widget
@@ -30,4 +32,6 @@ protected:
 	class UProgressBar* InteractionProgressBar;
 	UPROPERTY(meta = (BindWidget))
 	class UTextBlock* InteractionTextBlock;
+	UPROPERTY(meta = (BindWidget))
+	class UTextBlock* ActionTextBlock;
 };

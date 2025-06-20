@@ -9,6 +9,7 @@ bool UDBDPlayUserWidget::Initialize()
 
 	InteractionProgressBar->SetVisibility(ESlateVisibility::Hidden);
 	InteractionTextBlock->SetVisibility(ESlateVisibility::Hidden);
+	ActionTextBlock->SetVisibility(ESlateVisibility::Hidden);
 
 	return true;
 }
@@ -33,4 +34,15 @@ void UDBDPlayUserWidget::ShowInteractionProgress(float Value)
 void UDBDPlayUserWidget::HideInteractionProgress()
 {
 	InteractionProgressBar->SetVisibility(ESlateVisibility::Hidden);
+}
+
+void UDBDPlayUserWidget::ShowActionMessage(FString Message)
+{
+	ActionTextBlock->SetVisibility(ESlateVisibility::Visible);
+	ActionTextBlock->SetText(FText::FromString(Message));
+}
+
+void UDBDPlayUserWidget::HideActionMessage()
+{
+	ActionTextBlock->SetVisibility(ESlateVisibility::Hidden);
 }
