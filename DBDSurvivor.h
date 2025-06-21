@@ -89,6 +89,8 @@ private:
 	void FindInteratable();
 	void StartRepairGenerator();
 	void StopReapirGenerator();
+	void StartSkillCheck();
+	void FailedSkillCheck();
 	void HandleSkillCheck(int8 Type);
 	UFUNCTION()
 	void TryTriggerSkillCheck();
@@ -104,4 +106,5 @@ private:
 
 	ADBDGeneratorActor* CurrentGenerator;
 	FTimerHandle SkillCheckTimer;
+	FTimerHandle SkillCheckTriggerTimer;
 };

@@ -104,15 +104,6 @@ void ADBDPlayerController::StartSkillCheck()
 		SkillCheckWidget->SetVisibility(ESlateVisibility::Visible);
 		SkillCheckWidget->SetGeneratorSkillCheck();
 		SkillCheckWidget->StartPointerMove();
-
-		GetWorld()->GetTimerManager().SetTimer
-		(
-			SkillCheckTimerHandle,
-			this,
-			&ADBDPlayerController::StopSkillCheck,
-			1.1f,
-			false
-		);
 	}
 }
 

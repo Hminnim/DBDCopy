@@ -287,7 +287,7 @@ void ADBDSurvivor::StartRepairGenerator()
 	// Try trigger skillcheck
 	GetWorld()->GetTimerManager().SetTimer
 	(
-		SkillCheckTimer,
+		SkillCheckTriggerTimer,
 		this,
 		&ADBDSurvivor::TryTriggerSkillCheck,
 		1.0f,
@@ -308,11 +308,40 @@ void ADBDSurvivor::StopReapirGenerator()
 			HandleSkillCheck(int8(2));
 		}
 	}
-	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTimer);
+	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTriggerTimer);
+}
+
+void ADBDSurvivor::StartSkillCheck()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->ShowSkillCheck();
+	}
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		SkillCheckTimer,
+		this,
+		&ADBDSurvivor::FailedSkillCheck,
+		1.6f,
+		false
+	);
+}
+
+void ADBDSurvivor::FailedSkillCheck()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->StopSkillCheck();
+	}
+
+	HandleSkillCheck((int8)2);
 }
 
 void ADBDSurvivor::HandleSkillCheck(int8 Type)
 {
+	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTimer);
+
 	// Great skill check
 	if (Type == int8(0))
 	{
@@ -354,9 +383,6 @@ void ADBDSurvivor::TryTriggerSkillCheck()
 	float Chance = FMath::FRand(); // 0.0 ~ 1.0
 	if (Chance < 0.08)
 	{
-		if (PC)
-		{
-			PC->ShowSkillCheck();
-		}
+		StartSkillCheck();
 	}
 }
