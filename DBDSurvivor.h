@@ -11,14 +11,11 @@
 #include "EnhancedInputLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "DBDGeneratorActor.h"
+#include "DBDWindowActor.h"
 #include "DBDPlayerController.h" 
 #include "DBDSurvivor.generated.h"
-
-class UInputMappingContext;
-class UInputAction;
-class USpringArmComponent;
-class UCameraComponent;
 
 UCLASS()
 class DBDCOPY_API ADBDSurvivor : public ACharacter
@@ -40,10 +37,16 @@ public:
 	bool bIsSprinting = false;
 	bool bIsInteracting = false;
 	bool bIsActing = false;
+	bool bCanVault = false;
+	bool bIsVaulting = false;
 
 	// To vault window
 	void BeginOverlapWindow();
 	void EndOverlapWindow();
+	void SetCurrentWindow(ADBDWindowActor* Target);
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* VaultAnim;
 
 protected:
 	// Called when the game starts or when spawned
@@ -103,8 +106,18 @@ private:
 		Heal
 	};
 	ESurvivorInteraction CurrentInteractionState = ESurvivorInteraction::Idle;
+	
+	// Vault
+	void StartVault();
+	void StopVault();
+	FVector VaultStartLocation;
+	FVector VaultEndLocation;
+	FVector VaultTopLocation;
 
+	// Values
 	ADBDGeneratorActor* CurrentGenerator;
+	ADBDWindowActor* CurrentWindow;
 	FTimerHandle SkillCheckTimer;
 	FTimerHandle SkillCheckTriggerTimer;
+	FTimerHandle VaultTimer;
 };

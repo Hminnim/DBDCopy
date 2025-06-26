@@ -2,6 +2,7 @@
 
 
 #include "DBDWindowActor.h"
+#include "DBDSurvivor.h"
 
 // Sets default values
 ADBDWindowActor::ADBDWindowActor()
@@ -29,6 +30,18 @@ void ADBDWindowActor::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	if (MeshComponent->DoesSocketExist(FName("Top")))
+	{
+		TopLocation = MeshComponent->GetSocketLocation(FName("Top"));
+	}
+	if (MeshComponent->DoesSocketExist(FName("Vault Front")))
+	{
+		StartLocation[0] = MeshComponent->GetSocketLocation(FName("Vault Front"));
+	}
+	if (MeshComponent->DoesSocketExist(FName("Vault Back")))
+	{
+		StartLocation[1] = MeshComponent->GetSocketLocation(FName("Vault Back"));
+	}
 }
 
 void ADBDWindowActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
@@ -40,6 +53,7 @@ void ADBDWindowActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor
 	}
 
 	OverlappedPawn->BeginOverlapWindow();
+	OverlappedPawn->SetCurrentWindow(this);
 }
 
 void ADBDWindowActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)

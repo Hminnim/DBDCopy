@@ -36,6 +36,7 @@ void ADBDSurvivor::BeginOverlapWindow()
 	{
 		PC->ShowActionMessage("Press Space to Vault");
 	}
+	bCanVault = true;
 }
 
 void ADBDSurvivor::EndOverlapWindow()
@@ -44,6 +45,12 @@ void ADBDSurvivor::EndOverlapWindow()
 	{
 		PC->HideActionMessage();
 	}
+	bCanVault = false;
+}
+
+void ADBDSurvivor::SetCurrentWindow(ADBDWindowActor* Target)
+{
+	CurrentWindow = Target;
 }
 
 // Called when the game starts or when spawned
@@ -204,6 +211,10 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 		}
 	}
 
+	if (bCanVault)
+	{
+		StartVault();
+	}
 }
 
 void ADBDSurvivor::FindInteratable()
@@ -234,7 +245,7 @@ void ADBDSurvivor::FindInteratable()
 
 					CurrentInteractionState = ESurvivorInteraction::Repair;
 					CurrentGenerator = HitGenerator;
-					PC->ShowIneractionMessage("Press M1 to repair the generator");
+					PC->ShowIneractionMessage("Press M1 to repair");
 					PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
 					return;
 				}
@@ -385,4 +396,68 @@ void ADBDSurvivor::TryTriggerSkillCheck()
 	{
 		StartSkillCheck();
 	}
+}
+
+void ADBDSurvivor::StartVault()
+{
+	if (!CurrentWindow || bIsVaulting)
+	{
+		return;
+	}
+
+	bIsVaulting = true;
+
+	VaultStartLocation = CurrentWindow->StartLocation[0];
+	VaultEndLocation = CurrentWindow->StartLocation[1];
+	VaultTopLocation = CurrentWindow->TopLocation;
+	
+	// Find front location of the window
+	double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
+	if (MinDistance > FVector::Distance(GetActorLocation(), CurrentWindow->StartLocation[1]))
+	{
+		VaultStartLocation = VaultEndLocation;
+		VaultEndLocation = CurrentWindow->StartLocation[0];
+	}
+
+	VaultStartLocation.Z = GetActorLocation().Z;
+	VaultEndLocation.Z = GetActorLocation().Z;
+
+	// Move to front of window
+	SetActorLocation(VaultStartLocation);
+	FRotator VaultRotation = (CurrentWindow->GetActorLocation() - GetActorLocation()).Rotation();
+	VaultRotation.Pitch = 0.0f;
+	VaultRotation.Roll = 0.0f;
+	SetActorRotation(VaultRotation);
+
+	// Set vault speed
+	float PlayRate = bIsSprinting && !bIsCrouched  ? 3.16f : 1.0f;
+	float PlayTime = bIsSprinting && !bIsCrouched ? 0.5f : 1.58f;
+
+	// Change collision
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+
+	// Play animation
+	GetMesh()->GetAnimInstance()->Montage_Play(VaultAnim, PlayRate);
+
+	// Stop vault
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		VaultTimer,
+		this,
+		&ADBDSurvivor::StopVault,
+		PlayTime,
+		false
+	);
+}
+
+void ADBDSurvivor::StopVault()
+{
+	bIsVaulting = false;
+
+	// Change collision
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 }

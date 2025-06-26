@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Components/BoxComponent.h"
-#include "DBDSurvivor.h"
 #include "DBDWindowActor.generated.h"
 
 UCLASS()
@@ -16,6 +15,9 @@ class DBDCOPY_API ADBDWindowActor : public AActor
 public:	
 	// Sets default values for this actor's properties
 	ADBDWindowActor();
+
+	FVector StartLocation[2];
+	FVector TopLocation;
 
 protected:
 	// Called when the game starts or when spawned
