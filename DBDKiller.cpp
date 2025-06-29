@@ -92,6 +92,25 @@ void ADBDKiller::Look(const FInputActionValue& Value)
 
 void ADBDKiller::Interact(const FInputActionValue& Value)
 {
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Interact")));
+
+	FVector FireStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
+	FVector FireEnd = (Camera->GetForwardVector() * 250) + FireStart;
+
+	FHitResult HitResult;
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, FireStart, FireEnd, ECollisionChannel::ECC_Visibility))
+	{
+		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		{
+			if (HitResult.GetActor())
+			{
+				UGameplayStatics::ApplyDamage(HitResult.GetActor(), 1, PC, this, UDamageType::StaticClass());
+
+				GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("HitResult : %s"), *HitResult.GetActor()->GetName()));
+			}
+		}
+	}
 }
 
 void ADBDKiller::Action(const FInputActionValue& Value)

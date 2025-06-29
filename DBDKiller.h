@@ -9,6 +9,7 @@
 #include "EnhancedInputLibrary.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
+#include "DBDPlayerController.h"
 #include "DBDKiller.generated.h"
 
 class UInputMappingContext;

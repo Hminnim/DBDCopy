@@ -17,6 +17,14 @@
 #include "DBDPlayerController.h" 
 #include "DBDSurvivor.generated.h"
 
+UENUM(BlueprintType)
+enum class EHealthState : uint8
+{
+	Healthy		UMETA(DisplayName = "Healthy"),
+	Injured		UMETA(DisplayName = "Injured"),
+	DeepWound	UMETA(DisplayName = "DeepWound")
+};
+
 UCLASS()
 class DBDCOPY_API ADBDSurvivor : public ACharacter
 {
@@ -48,6 +56,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* VaultAnim;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "HealthState")
+	EHealthState CurrentHealthStateEnum = EHealthState::Healthy;
+
+	UFUNCTION()
+	void OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -62,6 +76,7 @@ protected:
 	float WalkSpeed = 226.0f;
 	float SprintSpeed = 400.0f;
 	float CrouchSpeed = 113.0f;
+	float CrawlSpeed = 70.0f;
 
 private:
 	// Input action

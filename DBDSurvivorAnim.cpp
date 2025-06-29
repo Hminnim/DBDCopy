@@ -27,4 +27,5 @@ void UDBDSurvivorAnim::NativeUpdateAnimation(float DeltaSecond)
 	SurvivorSpeed = Survivor->GetVelocity().Size2D();
 	bIsCrouched = Survivor->bIsCrouched;
 	bIsInteracting = Survivor->bIsInteracting;
+	CurrentHealthStateEnum = Survivor->CurrentHealthStateEnum;
 }

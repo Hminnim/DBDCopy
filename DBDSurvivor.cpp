@@ -32,6 +32,11 @@ ADBDSurvivor::ADBDSurvivor()
 
 void ADBDSurvivor::BeginOverlapWindow()
 {
+	if (CurrentHealthStateEnum == EHealthState::DeepWound)
+	{
+		return;
+	}
+
 	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
 	{
 		PC->ShowActionMessage("Press Space to Vault");
@@ -53,11 +58,41 @@ void ADBDSurvivor::SetCurrentWindow(ADBDWindowActor* Target)
 	CurrentWindow = Target;
 }
 
+void ADBDSurvivor::OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
+{
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("OnTakeDamge")));
+	if (CurrentHealthStateEnum == EHealthState::Healthy)
+	{
+		CurrentHealthStateEnum = EHealthState::Injured;
+		return;
+	}
+	else if (CurrentHealthStateEnum == EHealthState::Injured)
+	{
+		CurrentHealthStateEnum = EHealthState::DeepWound;
+		GetCharacterMovement()->MaxWalkSpeed = CrawlSpeed;
+
+		if (bIsInteracting)
+		{
+			if (CurrentInteractionState == ESurvivorInteraction::Repair)
+			{
+				StopReapirGenerator();
+			}
+		}
+		if (bIsCrouched)
+		{
+			UnCrouch();
+		}
+		return;
+	}
+}
+
 // Called when the game starts or when spawned
 void ADBDSurvivor::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// function bind
+	OnTakeAnyDamage.AddDynamic(this, &ADBDSurvivor::OnTakeDamage);
 }
 
 // Called every frame
@@ -145,7 +180,7 @@ void ADBDSurvivor::Look(const FInputActionValue& Value)
 
 void ADBDSurvivor::HandleCrouch(const FInputActionValue& Value)
 {
-	if (bIsInteracting || bIsActing)
+	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound)
 	{
 		return;
 	}
@@ -162,7 +197,7 @@ void ADBDSurvivor::HandleCrouch(const FInputActionValue& Value)
 
 void ADBDSurvivor::Sprint(const FInputActionValue& Value)
 {
-	if (bIsInteracting || bIsActing)
+	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound)
 	{
 		return;
 	}
@@ -180,7 +215,7 @@ void ADBDSurvivor::Sprint(const FInputActionValue& Value)
 
 void ADBDSurvivor::Interact(const FInputActionValue& Value)
 {
-	if (CurrentInteractionState == ESurvivorInteraction::Idle)
+	if (CurrentInteractionState == ESurvivorInteraction::Idle || CurrentHealthStateEnum == EHealthState::DeepWound)
 	{
 		return;
 	}
@@ -200,6 +235,7 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 
 void ADBDSurvivor::Action(const FInputActionValue& Value)
 {
+	// Skill check
 	if (CurrentInteractionState == ESurvivorInteraction::Repair)
 	{
 		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
@@ -219,7 +255,7 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 
 void ADBDSurvivor::FindInteratable()
 {
-	if (bIsInteracting || bIsActing)
+	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound)
 	{
 		return;
 	}
@@ -262,7 +298,7 @@ void ADBDSurvivor::FindInteratable()
 
 void ADBDSurvivor::StartRepairGenerator()
 {
-	if (!CurrentGenerator || CurrentInteractionState != ESurvivorInteraction::Repair)
+	if (!CurrentGenerator || CurrentInteractionState != ESurvivorInteraction::Repair || CurrentHealthStateEnum == EHealthState::DeepWound)
 	{
 		return;
 	}
@@ -400,7 +436,7 @@ void ADBDSurvivor::TryTriggerSkillCheck()
 
 void ADBDSurvivor::StartVault()
 {
-	if (!CurrentWindow || bIsVaulting)
+	if (!CurrentWindow || bIsVaulting || CurrentHealthStateEnum == EHealthState::DeepWound)
 	{
 		return;
 	}

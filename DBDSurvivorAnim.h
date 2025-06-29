@@ -30,6 +30,8 @@ public:
 	bool bIsCrouched;
 	UPROPERTY(BlueprintReadWrite)
 	bool bIsInteracting;
+	UPROPERTY(BlueprintReadWrite)
+	EHealthState CurrentHealthStateEnum;
 
 protected:
 	UPROPERTY(BlueprintReadWrite)
