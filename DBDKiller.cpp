@@ -22,7 +22,7 @@ ADBDKiller::ADBDKiller()
 	Camera->bUsePawnControlRotation = true;
 
 	// Mesh config
-	GetMesh()->SetOwnerNoSee(true);
+	GetMesh()->SetOwnerNoSee(false);
 }
 
 // Called when the game starts or when spawned

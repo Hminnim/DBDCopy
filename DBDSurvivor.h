@@ -15,6 +15,7 @@
 #include "DBDGeneratorActor.h"
 #include "DBDWindowActor.h"
 #include "DBDPlayerController.h" 
+#include "DBDBloodDecalActor.h"
 #include "DBDSurvivor.generated.h"
 
 UENUM(BlueprintType)
@@ -58,6 +59,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "HealthState")
 	EHealthState CurrentHealthStateEnum = EHealthState::Healthy;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Blood")
+	TSubclassOf<ADBDBloodDecalActor> BloodDecalClass;
 
 	UFUNCTION()
 	void OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);
@@ -135,4 +139,7 @@ private:
 	FTimerHandle SkillCheckTimer;
 	FTimerHandle SkillCheckTriggerTimer;
 	FTimerHandle VaultTimer;
+
+	void HandleBleeding(float DeltaTime);
+	float BleedingTimer = 0.0f;
 };

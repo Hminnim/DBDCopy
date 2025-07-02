@@ -118,6 +118,9 @@ void ADBDSurvivor::Tick(float DeltaTime)
 			}
 		}
 	}
+
+	// Handling bleeding
+	HandleBleeding(DeltaTime);
 }
 
 void ADBDSurvivor::NotifyControllerChanged()
@@ -496,4 +499,28 @@ void ADBDSurvivor::StopVault()
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+}
+
+void ADBDSurvivor::HandleBleeding(float DeltaTime)
+{
+	if (CurrentHealthStateEnum != EHealthState::Healthy)
+	{
+		if (BloodDecalClass)
+		{
+			BleedingTimer += DeltaTime;
+
+			if (BleedingTimer >= 1.2f)
+			{
+				FVector SpawnLocation = GetActorLocation();
+				SpawnLocation.Z = 0.0f;
+				FRotator SpawnRotation = FRotator(-90.0f, -90.0f, -180.0f);
+
+				ADBDBloodDecalActor* DecalActor = GetWorld()->SpawnActor<ADBDBloodDecalActor>(BloodDecalClass, SpawnLocation, SpawnRotation);
+				DecalActor->SetLifeSpan(10.0f);
+				DecalActor->SetActorScale3D(FVector(0.75f, 0.75f, 0.75f));
+				DecalActor->DecalComponent->DecalSize = FVector( 40.0f,80.0f,80.0f);
+				BleedingTimer = 0.0f;
+			}
+		}
+	}
 }
