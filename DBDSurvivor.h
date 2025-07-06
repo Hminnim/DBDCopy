@@ -16,6 +16,7 @@
 #include "DBDWindowActor.h"
 #include "DBDPlayerController.h" 
 #include "DBDBloodDecalActor.h"
+#include "DBDPalletActor.h"
 #include "DBDSurvivor.generated.h"
 
 UENUM(BlueprintType)
@@ -48,11 +49,20 @@ public:
 	bool bIsActing = false;
 	bool bCanVault = false;
 	bool bIsVaulting = false;
+	bool bCanDrop = false;
+	bool bIsDropping = false;
 
 	// To vault window
-	void BeginOverlapWindow();
-	void EndOverlapWindow();
+	void BeginOverlapWindowVault();
+	void EndOverlapWindowVault();
 	void SetCurrentWindow(ADBDWindowActor* Target);
+
+	// To drop pallet
+	void BeginOverlapPallet();
+	void EndOverlapPallet();
+	void BeginOverlapPalletVault();
+	void EndOverlapPalletVault();
+	void SetCurrentPallet(ADBDPalletActor* Target);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* VaultAnim;
@@ -129,6 +139,7 @@ private:
 	// Vault
 	void StartVault();
 	void StopVault();
+	int8 VaultType = 0;
 	FVector VaultStartLocation;
 	FVector VaultEndLocation;
 	FVector VaultTopLocation;
@@ -136,10 +147,14 @@ private:
 	// Values
 	ADBDGeneratorActor* CurrentGenerator;
 	ADBDWindowActor* CurrentWindow;
+	ADBDPalletActor* CurrentPallet;
 	FTimerHandle SkillCheckTimer;
 	FTimerHandle SkillCheckTriggerTimer;
 	FTimerHandle VaultTimer;
 
 	void HandleBleeding(float DeltaTime);
 	float BleedingTimer = 0.0f;
+
+	void StartDrop();
+	void StopDrop();
 };

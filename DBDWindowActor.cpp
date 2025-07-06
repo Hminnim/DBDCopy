@@ -52,7 +52,7 @@ void ADBDWindowActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor
 		return;
 	}
 
-	OverlappedPawn->BeginOverlapWindow();
+	OverlappedPawn->BeginOverlapWindowVault();
 	OverlappedPawn->SetCurrentWindow(this);
 }
 
@@ -64,5 +64,5 @@ void ADBDWindowActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AAc
 		return;
 	}
 
-	OverlappedPawn->EndOverlapWindow();
+	OverlappedPawn->EndOverlapWindowVault();
 }

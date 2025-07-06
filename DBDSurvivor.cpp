@@ -30,7 +30,7 @@ ADBDSurvivor::ADBDSurvivor()
 	Camera->bUsePawnControlRotation = false;
 }
 
-void ADBDSurvivor::BeginOverlapWindow()
+void ADBDSurvivor::BeginOverlapWindowVault()
 {
 	if (CurrentHealthStateEnum == EHealthState::DeepWound)
 	{
@@ -41,10 +41,11 @@ void ADBDSurvivor::BeginOverlapWindow()
 	{
 		PC->ShowActionMessage("Press Space to Vault");
 	}
+	VaultType = 0;
 	bCanVault = true;
 }
 
-void ADBDSurvivor::EndOverlapWindow()
+void ADBDSurvivor::EndOverlapWindowVault()
 {
 	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
 	{
@@ -56,6 +57,48 @@ void ADBDSurvivor::EndOverlapWindow()
 void ADBDSurvivor::SetCurrentWindow(ADBDWindowActor* Target)
 {
 	CurrentWindow = Target;
+}
+
+void ADBDSurvivor::BeginOverlapPallet()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->ShowActionMessage("Press Space to Drop");
+	}
+	bCanDrop = true;
+}
+
+void ADBDSurvivor::EndOverlapPallet()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->HideActionMessage();
+	}
+	bCanDrop = false;
+}
+
+void ADBDSurvivor::BeginOverlapPalletVault()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->ShowActionMessage("Press Space to Vault");
+	}
+	VaultType = 1;
+	bCanVault = true;
+}
+
+void ADBDSurvivor::EndOverlapPalletVault()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->HideActionMessage();
+	}
+	bCanVault = false;
+}
+
+void ADBDSurvivor::SetCurrentPallet(ADBDPalletActor* Target)
+{
+	CurrentPallet = Target;
 }
 
 void ADBDSurvivor::OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
@@ -156,7 +199,7 @@ void ADBDSurvivor::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void ADBDSurvivor::Move(const FInputActionValue& Value)
 {
-	if (bIsInteracting || bIsActing)
+	if (bIsInteracting || bIsActing || bIsDropping)
 	{
 		return;
 	}
@@ -183,7 +226,7 @@ void ADBDSurvivor::Look(const FInputActionValue& Value)
 
 void ADBDSurvivor::HandleCrouch(const FInputActionValue& Value)
 {
-	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound)
+	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping)
 	{
 		return;
 	}
@@ -200,7 +243,7 @@ void ADBDSurvivor::HandleCrouch(const FInputActionValue& Value)
 
 void ADBDSurvivor::Sprint(const FInputActionValue& Value)
 {
-	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound)
+	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping)
 	{
 		return;
 	}
@@ -218,7 +261,7 @@ void ADBDSurvivor::Sprint(const FInputActionValue& Value)
 
 void ADBDSurvivor::Interact(const FInputActionValue& Value)
 {
-	if (CurrentInteractionState == ESurvivorInteraction::Idle || CurrentHealthStateEnum == EHealthState::DeepWound)
+	if (CurrentInteractionState == ESurvivorInteraction::Idle || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping)
 	{
 		return;
 	}
@@ -238,6 +281,11 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 
 void ADBDSurvivor::Action(const FInputActionValue& Value)
 {
+	if (bIsDropping || bIsVaulting)
+	{
+		return;
+	}
+
 	// Skill check
 	if (CurrentInteractionState == ESurvivorInteraction::Repair)
 	{
@@ -248,11 +296,22 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 				HandleSkillCheck(PC->GetSkillCheckResult());
 			}
 		}
+
+		return;
 	}
 
 	if (bCanVault)
 	{
 		StartVault();
+		return;
+	}
+
+	if (bCanDrop)
+	{
+		if (CurrentPallet)
+		{
+			StartDrop();
+		}
 	}
 }
 
@@ -439,34 +498,61 @@ void ADBDSurvivor::TryTriggerSkillCheck()
 
 void ADBDSurvivor::StartVault()
 {
-	if (!CurrentWindow || bIsVaulting || CurrentHealthStateEnum == EHealthState::DeepWound)
+	if (!bCanVault || bIsVaulting || CurrentHealthStateEnum == EHealthState::DeepWound)
 	{
 		return;
 	}
 
 	bIsVaulting = true;
 
-	VaultStartLocation = CurrentWindow->StartLocation[0];
-	VaultEndLocation = CurrentWindow->StartLocation[1];
-	VaultTopLocation = CurrentWindow->TopLocation;
-	
-	// Find front location of the window
-	double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
-	if (MinDistance > FVector::Distance(GetActorLocation(), CurrentWindow->StartLocation[1]))
+	if (VaultType == 0 && CurrentWindow)
 	{
-		VaultStartLocation = VaultEndLocation;
-		VaultEndLocation = CurrentWindow->StartLocation[0];
+		VaultStartLocation = CurrentWindow->StartLocation[0];
+		VaultEndLocation = CurrentWindow->StartLocation[1];
+		VaultTopLocation = CurrentWindow->TopLocation;
+
+		// Find front location of current window
+		double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
+		if (MinDistance > FVector::Distance(GetActorLocation(), CurrentWindow->StartLocation[1]))
+		{
+			VaultStartLocation = VaultEndLocation;
+			VaultEndLocation = CurrentWindow->StartLocation[0];
+		}
+
+		VaultStartLocation.Z = GetActorLocation().Z;
+		VaultEndLocation.Z = GetActorLocation().Z;
+
+		// Move to front of current window
+		SetActorLocation(VaultStartLocation);
+		FRotator VaultRotation = (CurrentWindow->GetActorLocation() - GetActorLocation()).Rotation();
+		VaultRotation.Pitch = 0.0f;
+		VaultRotation.Roll = 0.0f;
+		SetActorRotation(VaultRotation);
 	}
+	if (VaultType == 1 && CurrentPallet)
+	{
+		VaultStartLocation = CurrentPallet->StartLocation[0];
+		VaultEndLocation = CurrentPallet->StartLocation[1];
 
-	VaultStartLocation.Z = GetActorLocation().Z;
-	VaultEndLocation.Z = GetActorLocation().Z;
+		// Find front location of current pallet
+		double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
+		if (MinDistance > FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[1]))
+		{
+			VaultStartLocation = VaultEndLocation;
+			VaultEndLocation = CurrentPallet->StartLocation[0];
+		}
 
-	// Move to front of window
-	SetActorLocation(VaultStartLocation);
-	FRotator VaultRotation = (CurrentWindow->GetActorLocation() - GetActorLocation()).Rotation();
-	VaultRotation.Pitch = 0.0f;
-	VaultRotation.Roll = 0.0f;
-	SetActorRotation(VaultRotation);
+		VaultStartLocation.Z = GetActorLocation().Z;
+		VaultEndLocation.Z = GetActorLocation().Z;
+
+		// Move to front of current pallet
+		SetActorLocation(VaultStartLocation);
+		FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({30.0f,0.0f,0.0f}));
+		FRotator VaultRotation = (PalletTriggerBoxLocation - GetActorLocation()).Rotation();
+		VaultRotation.Pitch = 0.0f;
+		VaultRotation.Roll = 0.0f;
+		SetActorRotation(VaultRotation);
+	}
 
 	// Set vault speed
 	float PlayRate = bIsSprinting && !bIsCrouched  ? 3.16f : 1.0f;
@@ -523,4 +609,48 @@ void ADBDSurvivor::HandleBleeding(float DeltaTime)
 			}
 		}
 	}
+}
+
+void ADBDSurvivor::StartDrop()
+{
+	VaultStartLocation = CurrentPallet->StartLocation[0];
+	VaultEndLocation = CurrentPallet->StartLocation[1];
+
+	// Find front location of current pallet
+	double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
+	if (MinDistance > FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[1]))
+	{
+		VaultStartLocation = VaultEndLocation;
+		VaultEndLocation = CurrentPallet->StartLocation[0];
+	}
+
+	VaultStartLocation.Z = GetActorLocation().Z;
+	VaultEndLocation.Z = GetActorLocation().Z;
+
+	// Move to front of current pallet
+	SetActorLocation(VaultStartLocation);
+	FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({ 30.0f,0.0f,0.0f }));
+	FRotator VaultRotation = (PalletTriggerBoxLocation - GetActorLocation()).Rotation();
+	VaultRotation.Pitch = 0.0f;
+	VaultRotation.Roll = 0.0f;
+	SetActorRotation(VaultRotation);
+
+	CurrentPallet->StartDrop();
+	bIsDropping = true;
+
+	FTimerHandle DropTimer;
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		DropTimer,
+		this,
+		&ADBDSurvivor::StopDrop,
+		0.2f,
+		false
+	);
+}
+
+void ADBDSurvivor::StopDrop()
+{
+	bIsDropping = false;
+	CurrentPallet->EndDrop();
 }
