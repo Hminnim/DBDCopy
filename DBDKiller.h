@@ -32,6 +32,13 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	virtual void NotifyControllerChanged() override;
 
+	// Killer state flags
+	bool bCanCharacterChange = false;
+
+	// To change character
+	void BeginOverlapCharacterChange();
+	void EndOverlapCharacterChange();
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;

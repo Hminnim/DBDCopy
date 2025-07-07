@@ -19,6 +19,7 @@ public:
 	ADBDGameModeBase();
 
 	virtual void PostLogin(APlayerController* NewPlayer) override;
+	void ChangeCharacter(APlayerController* PlayerController);
 
 protected:
 	// Character class

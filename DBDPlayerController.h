@@ -8,6 +8,7 @@
 #include "TimerManager.h"
 #include "DBDPlayUserWidget.h"
 #include "DBDSkillCheckUserWidget.h"
+#include "DBDGameModeBase.h"
 #include "Kismet/GameplayStatics.h"
 #include "DBDPlayerController.generated.h"
 
@@ -36,6 +37,8 @@ public:
 	void HideSkillCheck();
 	void StopSkillCheck();
 	int8 GetSkillCheckResult();
+
+	void CharacterChange();
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sound")
 	USoundBase* AlertSound;

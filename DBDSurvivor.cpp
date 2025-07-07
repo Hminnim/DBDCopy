@@ -101,6 +101,24 @@ void ADBDSurvivor::SetCurrentPallet(ADBDPalletActor* Target)
 	CurrentPallet = Target;
 }
 
+void ADBDSurvivor::BeginOverlapCharacterChange()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->ShowActionMessage("Press Space to Change Character");
+	}
+	bCanCharacterChange = true;
+}
+
+void ADBDSurvivor::EndOverlapCharacterChange()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->HideActionMessage();
+	}
+	bCanCharacterChange = false;
+}
+
 void ADBDSurvivor::OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
 {
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("OnTakeDamge")));
@@ -311,6 +329,15 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 		if (CurrentPallet)
 		{
 			StartDrop();
+		}
+	}
+
+	if (bCanCharacterChange)
+	{
+		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		{
+			PC->HideActionMessage();
+			PC->CharacterChange();
 		}
 	}
 }
@@ -652,5 +679,6 @@ void ADBDSurvivor::StartDrop()
 void ADBDSurvivor::StopDrop()
 {
 	bIsDropping = false;
+	bCanDrop = false;
 	CurrentPallet->EndDrop();
 }

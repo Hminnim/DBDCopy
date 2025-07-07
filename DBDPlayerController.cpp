@@ -137,3 +137,12 @@ int8 ADBDPlayerController::GetSkillCheckResult()
 		return int8(2);
 	}
 }
+
+void ADBDPlayerController::CharacterChange()
+{
+	ADBDGameModeBase* GM = Cast<ADBDGameModeBase>(GetWorld()->GetAuthGameMode());
+	if (GM)
+	{
+		GM->ChangeCharacter(this);
+	}
+}

@@ -25,6 +25,24 @@ ADBDKiller::ADBDKiller()
 	GetMesh()->SetOwnerNoSee(false);
 }
 
+void ADBDKiller::BeginOverlapCharacterChange()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->ShowActionMessage("Press Space to Change Character");
+	}
+	bCanCharacterChange = true;
+}
+
+void ADBDKiller::EndOverlapCharacterChange()
+{
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->HideActionMessage();
+	}
+	bCanCharacterChange = false;
+}
+
 // Called when the game starts or when spawned
 void ADBDKiller::BeginPlay()
 {
@@ -92,6 +110,11 @@ void ADBDKiller::Look(const FInputActionValue& Value)
 
 void ADBDKiller::Interact(const FInputActionValue& Value)
 {
+	if (Value.Get<bool>() == false)
+	{
+		return;
+	}
+
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Interact")));
 
 	FVector FireStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
@@ -115,4 +138,12 @@ void ADBDKiller::Interact(const FInputActionValue& Value)
 
 void ADBDKiller::Action(const FInputActionValue& Value)
 {
+	if (bCanCharacterChange)
+	{
+		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		{
+			PC->HideActionMessage();
+			PC->CharacterChange();
+		}
+	}
 }

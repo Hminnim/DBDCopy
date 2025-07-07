@@ -51,6 +51,7 @@ public:
 	bool bIsVaulting = false;
 	bool bCanDrop = false;
 	bool bIsDropping = false;
+	bool bCanCharacterChange = false;
 
 	// To vault window
 	void BeginOverlapWindowVault();
@@ -63,6 +64,10 @@ public:
 	void BeginOverlapPalletVault();
 	void EndOverlapPalletVault();
 	void SetCurrentPallet(ADBDPalletActor* Target);
+
+	// To change character
+	void BeginOverlapCharacterChange();
+	void EndOverlapCharacterChange();
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* VaultAnim;
