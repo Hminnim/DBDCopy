@@ -17,8 +17,8 @@ ADBDKiller::ADBDKiller()
 
 	// Camera config
 	Camera = CreateDefaultSubobject<UCameraComponent>("Camera");
-	Camera->SetupAttachment(RootComponent);
-	Camera->SetRelativeLocation(FVector(20.0f, 0.0f, 70.0f));
+	Camera->SetupAttachment(GetMesh(), "headSocket");
+	Camera->SetRelativeLocation(FVector(0.0f, 15.0f, 0.0f));
 	Camera->bUsePawnControlRotation = true;
 
 	// Mesh config
@@ -55,6 +55,7 @@ void ADBDKiller::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	FindBreakable();
 }
 
 void ADBDKiller::NotifyControllerChanged()
@@ -88,6 +89,11 @@ void ADBDKiller::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 
 void ADBDKiller::Move(const FInputActionValue& Value)
 {
+	if (bIsBreakingPallet || bIsBreakingGenerator)
+	{
+		return;
+	}
+
 	const FVector2D MovementValue = Value.Get<FVector2D>();
 
 	const FRotator ControllerRotation = Controller->GetControlRotation();
@@ -102,6 +108,11 @@ void ADBDKiller::Move(const FInputActionValue& Value)
 
 void ADBDKiller::Look(const FInputActionValue& Value)
 {
+	if (bIsBreakingPallet || bIsBreakingGenerator)
+	{
+		return;
+	}
+
 	const FVector2D LookValue = Value.Get<FVector2D>();
 
 	AddControllerYawInput(LookValue.X);
@@ -110,7 +121,7 @@ void ADBDKiller::Look(const FInputActionValue& Value)
 
 void ADBDKiller::Interact(const FInputActionValue& Value)
 {
-	if (Value.Get<bool>() == false)
+	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator)
 	{
 		return;
 	}
@@ -146,4 +157,175 @@ void ADBDKiller::Action(const FInputActionValue& Value)
 			PC->CharacterChange();
 		}
 	}
+	if (bCanBreakPallet)
+	{
+		BreakPallet();
+	}
+	if (bCanBreakGenerator)
+	{
+		BreakGenerator();
+	}
+}
+
+void ADBDKiller::FindBreakable()
+{
+	if (bIsBreakingPallet || bIsBreakingGenerator)
+	{
+		return;
+	}
+
+	FVector FireStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
+	FVector FireEnd = (Camera->GetForwardVector() * 200) + FireStart;
+
+	FHitResult HitResult;
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, FireStart, FireEnd, ECollisionChannel::ECC_Visibility))
+	{
+		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		{
+			if (HitResult.GetActor())
+			{
+				ADBDPalletActor* HitPallet = Cast<ADBDPalletActor>(HitResult.GetActor());
+				if (HitPallet)
+				{
+					if (HitPallet->bIsDropped)
+					{
+						CurrentPallet = HitPallet;
+						PC->ShowActionMessage("Press Space to break the pallet");
+						bCanBreakPallet = true;
+						return;
+					}
+				}
+
+				ADBDGeneratorActor* HitGenerator = Cast<ADBDGeneratorActor>(HitResult.GetActor());
+				if (HitGenerator)
+				{
+					CurrentGenerator = HitGenerator;
+					PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
+					if (CurrentGenerator->CurrentRepairRate > 0.0f)
+					{
+						PC->ShowActionMessage("Press Space to break the pallet");
+						bCanBreakGenerator = true;
+					}
+					return;
+				}
+			}
+		}
+	}
+
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->HideActionMessage();
+		PC->HideInteractionProgress();
+		bCanBreakPallet = false;
+		bCanBreakGenerator = false;
+	}
+}
+
+void ADBDKiller::BreakPallet()
+{
+	if (!CurrentPallet || !bCanBreakPallet || bIsBreakingPallet)
+	{
+		return;
+	}
+
+	bIsBreakingPallet = true;
+	
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->HideActionMessage();
+	}
+
+	// Move to front of current pallet
+	FVector PalletFrontLocation;
+	if (FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[0]) >
+		FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[1]))
+	{
+		PalletFrontLocation = CurrentPallet->StartLocation[1];
+	}
+	else
+	{
+		PalletFrontLocation = CurrentPallet->StartLocation[0];
+	}
+	SetActorLocation(PalletFrontLocation);
+
+	FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({ 30.0f,0.0f,0.0f }));
+	FRotator PalletRotation = (PalletTriggerBoxLocation - GetActorLocation()).Rotation();
+	PalletRotation.Pitch = 0.0f;
+	PalletRotation.Roll = 0.0f;
+	SetActorRotation(PalletRotation);
+
+	PlayAnimMontage(BreakAnim);
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		BreakTimerHandle,
+		this,
+		&ADBDKiller::EndBreakPallet,
+		2.34f,
+		false
+	);
+	
+}
+
+void ADBDKiller::EndBreakPallet()
+{
+	CurrentPallet->Destroy();
+	bIsBreakingPallet = false;
+	bCanBreakPallet = false;
+}
+
+void ADBDKiller::BreakGenerator()
+{
+	if (bIsBreakingGenerator)
+	{
+		return;
+	}
+
+	bIsBreakingGenerator = true;
+
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->HideActionMessage();
+	}
+
+	// Move to front of current generator
+	FVector RepairLocation = CurrentGenerator->RepairLocation[0];
+	double MinDistance = FVector::Distance(GetActorLocation(), RepairLocation);
+	for (int i = 1; i < 4; i++)
+	{
+		double NextDistance = FVector::Distance(GetActorLocation(), CurrentGenerator->RepairLocation[i]);
+		if (MinDistance > NextDistance)
+		{
+			RepairLocation = CurrentGenerator->RepairLocation[i];
+			MinDistance = NextDistance;
+		}
+	}
+	RepairLocation.Z = GetActorLocation().Z;
+	SetActorLocation(RepairLocation, false);
+
+	// Set rotation to generator
+	FRotator RepairRotation = (CurrentGenerator->GetActorLocation() - GetActorLocation()).Rotation();
+	RepairRotation.Pitch = 0.0f;
+	RepairRotation.Roll = 0.0f;
+	SetActorRotation(RepairRotation);
+
+	PlayAnimMontage(BreakAnim);
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		BreakTimerHandle,
+		this,
+		&ADBDKiller::EndBreakGenerator,
+		1.8f,
+		false
+	);
+}
+
+void ADBDKiller::EndBreakGenerator()
+{
+	bIsBreakingGenerator = false;
+	bCanBreakGenerator = false;
+	CurrentGenerator->CurrentRepairRate = CurrentGenerator->CurrentRepairRate > 2.5f ? CurrentGenerator->CurrentRepairRate - 2.5f : 0.0f;
+	StopAnimMontage();
 }

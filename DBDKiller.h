@@ -8,8 +8,11 @@
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputLibrary.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Camera/CameraComponent.h"
 #include "DBDPlayerController.h"
+#include "DBDPalletActor.h"
+#include "DBDGeneratorActor.h"
 #include "DBDKiller.generated.h"
 
 class UInputMappingContext;
@@ -34,6 +37,10 @@ public:
 
 	// Killer state flags
 	bool bCanCharacterChange = false;
+	bool bCanBreakPallet = false;
+	bool bIsBreakingPallet = false;
+	bool bCanBreakGenerator = false;
+	bool bIsBreakingGenerator = false;
 
 	// To change character
 	void BeginOverlapCharacterChange();
@@ -46,6 +53,10 @@ protected:
 	// Components
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	UCameraComponent* Camera;
+
+	// Animations
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* BreakAnim;
 
 	// Killer speed values
 	float WalkSpeed = 460.0f;
@@ -68,4 +79,14 @@ private:
 	void Look(const FInputActionValue& Value);
 	void Interact(const FInputActionValue& Value);
 	void Action(const FInputActionValue& Value);
+
+	void FindBreakable();
+	void BreakPallet();
+	void EndBreakPallet();
+	void BreakGenerator();
+	void EndBreakGenerator();
+
+	ADBDPalletActor* CurrentPallet;
+	ADBDGeneratorActor* CurrentGenerator;
+	FTimerHandle BreakTimerHandle;
 };
