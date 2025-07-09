@@ -2,6 +2,7 @@
 
 
 #include "DBDKiller.h"
+#include "DBDSurvivor.h"
 
 // Sets default values
 ADBDKiller::ADBDKiller()
@@ -121,34 +122,21 @@ void ADBDKiller::Look(const FInputActionValue& Value)
 
 void ADBDKiller::Interact(const FInputActionValue& Value)
 {
-	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator)
+	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator || !bCanAttack || bIsAttacking)
 	{
 		return;
 	}
 
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Interact")));
-
-	FVector FireStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
-	FVector FireEnd = (Camera->GetForwardVector() * 250) + FireStart;
-
-	FHitResult HitResult;
-
-	if (GetWorld()->LineTraceSingleByChannel(HitResult, FireStart, FireEnd, ECollisionChannel::ECC_Visibility))
-	{
-		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
-		{
-			if (HitResult.GetActor())
-			{
-				UGameplayStatics::ApplyDamage(HitResult.GetActor(), 1, PC, this, UDamageType::StaticClass());
-
-				GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("HitResult : %s"), *HitResult.GetActor()->GetName()));
-			}
-		}
-	}
+	Attack();
 }
 
 void ADBDKiller::Action(const FInputActionValue& Value)
 {
+	if (bIsAttacking)
+	{
+		return;
+	}
+
 	if (bCanCharacterChange)
 	{
 		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
@@ -169,7 +157,7 @@ void ADBDKiller::Action(const FInputActionValue& Value)
 
 void ADBDKiller::FindBreakable()
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsAttacking)
 	{
 		return;
 	}
@@ -328,4 +316,55 @@ void ADBDKiller::EndBreakGenerator()
 	bCanBreakGenerator = false;
 	CurrentGenerator->CurrentRepairRate = CurrentGenerator->CurrentRepairRate > 2.5f ? CurrentGenerator->CurrentRepairRate - 2.5f : 0.0f;
 	StopAnimMontage();
+}
+
+void ADBDKiller::Attack()
+{
+	bool bIsSuccces = false;
+
+	FVector FireStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
+	FVector FireEnd = (Camera->GetForwardVector() * 250) + FireStart;
+
+	FHitResult HitResult;
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, FireStart, FireEnd, ECollisionChannel::ECC_Visibility))
+	{
+		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		{
+			if (HitResult.GetActor())
+			{
+				if (ADBDSurvivor* HitSuvivor = Cast<ADBDSurvivor>(HitResult.GetActor()))
+				{
+					if (HitSuvivor->CurrentHealthStateEnum != EHealthState::DeepWound)
+					{
+						UGameplayStatics::ApplyDamage(HitResult.GetActor(), 1, PC, this, UDamageType::StaticClass());
+						bIsSuccces = true;
+					}
+				}
+				GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("HitResult : %s"), *HitResult.GetActor()->GetName()));
+			}
+		}
+	}
+
+	bCanAttack = false;
+	GetCharacterMovement()->MaxWalkSpeed = 200.0f;
+	bIsAttacking = true;
+	PlayAnimMontage(AttackAnim);
+	float AttackDelay = bIsSuccces ? 2.7f : 1.5f;
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		AttackTimerHandle,
+		this,
+		&ADBDKiller::EndAttack,
+		AttackDelay,
+		false
+	);
+}
+
+void ADBDKiller::EndAttack()
+{
+	bCanAttack = true;
+	bIsAttacking = false;
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 }

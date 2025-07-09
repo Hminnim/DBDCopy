@@ -41,6 +41,8 @@ public:
 	bool bIsBreakingPallet = false;
 	bool bCanBreakGenerator = false;
 	bool bIsBreakingGenerator = false;
+	bool bCanAttack = true;
+	bool bIsAttacking = false;
 
 	// To change character
 	void BeginOverlapCharacterChange();
@@ -57,6 +59,8 @@ protected:
 	// Animations
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* BreakAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* AttackAnim;
 
 	// Killer speed values
 	float WalkSpeed = 460.0f;
@@ -85,8 +89,11 @@ private:
 	void EndBreakPallet();
 	void BreakGenerator();
 	void EndBreakGenerator();
+	void Attack();
+	void EndAttack();
 
 	ADBDPalletActor* CurrentPallet;
 	ADBDGeneratorActor* CurrentGenerator;
 	FTimerHandle BreakTimerHandle;
+	FTimerHandle AttackTimerHandle;
 };
