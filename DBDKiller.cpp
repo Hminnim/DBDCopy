@@ -44,6 +44,29 @@ void ADBDKiller::EndOverlapCharacterChange()
 	bCanCharacterChange = false;
 }
 
+void ADBDKiller::BeginOverlapVault()
+{
+	bCanVault = true;
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->ShowActionMessage("Press Space to Vault");
+	}
+}
+
+void ADBDKiller::EndOverlapVault()
+{
+	bCanVault = false;
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->HideActionMessage();
+	}
+}
+
+void ADBDKiller::SetCurrentWindow(ADBDWindowActor* WindowActor)
+{
+	CurrentWindow = WindowActor;
+}
+
 // Called when the game starts or when spawned
 void ADBDKiller::BeginPlay()
 {
@@ -90,7 +113,7 @@ void ADBDKiller::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 
 void ADBDKiller::Move(const FInputActionValue& Value)
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting)
 	{
 		return;
 	}
@@ -109,7 +132,7 @@ void ADBDKiller::Move(const FInputActionValue& Value)
 
 void ADBDKiller::Look(const FInputActionValue& Value)
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting)
 	{
 		return;
 	}
@@ -122,7 +145,7 @@ void ADBDKiller::Look(const FInputActionValue& Value)
 
 void ADBDKiller::Interact(const FInputActionValue& Value)
 {
-	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator || !bCanAttack || bIsAttacking)
+	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator || !bCanAttack || bIsAttacking || bIsVaulting)
 	{
 		return;
 	}
@@ -132,7 +155,7 @@ void ADBDKiller::Interact(const FInputActionValue& Value)
 
 void ADBDKiller::Action(const FInputActionValue& Value)
 {
-	if (bIsAttacking)
+	if (bIsAttacking || bIsVaulting)
 	{
 		return;
 	}
@@ -153,11 +176,15 @@ void ADBDKiller::Action(const FInputActionValue& Value)
 	{
 		BreakGenerator();
 	}
+	if (bCanVault)
+	{
+		Vault();
+	}
 }
 
 void ADBDKiller::FindBreakable()
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator || bIsAttacking)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsAttacking || bCanVault)
 	{
 		return;
 	}
@@ -367,4 +394,72 @@ void ADBDKiller::EndAttack()
 	bCanAttack = true;
 	bIsAttacking = false;
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+}
+
+void ADBDKiller::Vault()
+{
+	if (bIsVaulting || !bCanVault)
+	{
+		return;
+	}
+
+	bIsVaulting = true;
+
+
+	// Find front location of current window
+	FVector VaultLocation = CurrentWindow->StartLocation[0];
+	double VaultDistance = FVector::Distance(GetActorLocation(), VaultLocation);
+	if (VaultDistance > FVector::Distance(GetActorLocation(), CurrentWindow->StartLocation[1]))
+	{
+		VaultLocation = CurrentWindow->StartLocation[1];
+	}
+	VaultLocation.Z = GetActorLocation().Z;
+
+	// Move to front of current window
+	SetActorLocation(VaultLocation);
+	FRotator VaultRotation = (CurrentWindow->GetActorLocation() - GetActorLocation()).Rotation();
+	VaultRotation.Pitch = 0.0f;
+	VaultRotation.Roll = 0.0f;
+	SetActorRotation(VaultRotation);
+
+	// Change collision
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+
+	PlayAnimMontage(VaultAnim);
+	FTimerHandle AnimTimerHandle;
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		AnimTimerHandle,
+		this,
+		&ADBDKiller::EndVaultAnim,
+		1.0f,
+		false
+	);
+
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		VaultTimerHandle,
+		this,
+		&ADBDKiller::EndVault,
+		1.7f,
+		false
+	);
+}
+
+void ADBDKiller::EndVault()
+{
+	bIsVaulting = false;
+	
+}
+
+void ADBDKiller::EndVaultAnim()
+{
+	StopAnimMontage(VaultAnim);
+	// Change collision
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 }

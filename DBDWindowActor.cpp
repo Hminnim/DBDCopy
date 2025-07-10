@@ -3,6 +3,7 @@
 
 #include "DBDWindowActor.h"
 #include "DBDSurvivor.h"
+#include "DBDKiller.h"
 
 // Sets default values
 ADBDWindowActor::ADBDWindowActor()
@@ -46,23 +47,34 @@ void ADBDWindowActor::BeginPlay()
 
 void ADBDWindowActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	ADBDSurvivor* OverlappedPawn = Cast<ADBDSurvivor>(OtherActor);
-	if (!OverlappedPawn)
+	ADBDSurvivor* OverlappedSurvivor = Cast<ADBDSurvivor>(OtherActor);
+	if (OverlappedSurvivor)
 	{
-		return;
+		OverlappedSurvivor->BeginOverlapWindowVault();
+		OverlappedSurvivor->SetCurrentWindow(this);
 	}
 
-	OverlappedPawn->BeginOverlapWindowVault();
-	OverlappedPawn->SetCurrentWindow(this);
+	ADBDKiller* OverlappedKiller = Cast<ADBDKiller>(OtherActor);
+	if (OverlappedKiller)
+	{
+		OverlappedKiller->BeginOverlapVault();
+		OverlappedKiller->SetCurrentWindow(this);
+	}
+	
 }
 
 void ADBDWindowActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
-	ADBDSurvivor* OverlappedPawn = Cast<ADBDSurvivor>(OtherActor);
-	if (!OverlappedPawn)
+	ADBDSurvivor* OverlappedSurvivor = Cast<ADBDSurvivor>(OtherActor);
+	if (OverlappedSurvivor)
 	{
-		return;
+		OverlappedSurvivor->EndOverlapWindowVault();
 	}
 
-	OverlappedPawn->EndOverlapWindowVault();
+	ADBDKiller* OverlappedKiller = Cast<ADBDKiller>(OtherActor);
+	if (OverlappedKiller)
+	{
+		OverlappedKiller->EndOverlapVault();
+	}
+	
 }

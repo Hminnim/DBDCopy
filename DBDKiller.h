@@ -13,6 +13,7 @@
 #include "DBDPlayerController.h"
 #include "DBDPalletActor.h"
 #include "DBDGeneratorActor.h"
+#include "DBDWindowActor.h"
 #include "DBDKiller.generated.h"
 
 class UInputMappingContext;
@@ -43,10 +44,17 @@ public:
 	bool bIsBreakingGenerator = false;
 	bool bCanAttack = true;
 	bool bIsAttacking = false;
+	bool bCanVault = false;
+	bool bIsVaulting = false;
 
 	// To change character
 	void BeginOverlapCharacterChange();
 	void EndOverlapCharacterChange();
+
+	// To vault window
+	void BeginOverlapVault();
+	void EndOverlapVault();
+	void SetCurrentWindow(ADBDWindowActor* WindowActor);
 
 protected:
 	// Called when the game starts or when spawned
@@ -61,6 +69,8 @@ protected:
 	UAnimMontage* BreakAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* AttackAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* VaultAnim;
 
 	// Killer speed values
 	float WalkSpeed = 460.0f;
@@ -91,9 +101,14 @@ private:
 	void EndBreakGenerator();
 	void Attack();
 	void EndAttack();
+	void Vault();
+	void EndVault();
+	void EndVaultAnim();
 
 	ADBDPalletActor* CurrentPallet;
 	ADBDGeneratorActor* CurrentGenerator;
+	ADBDWindowActor* CurrentWindow;
 	FTimerHandle BreakTimerHandle;
 	FTimerHandle AttackTimerHandle;
+	FTimerHandle VaultTimerHandle;
 };
