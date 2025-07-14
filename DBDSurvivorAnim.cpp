@@ -28,4 +28,5 @@ void UDBDSurvivorAnim::NativeUpdateAnimation(float DeltaSecond)
 	bIsCrouched = Survivor->bIsCrouched;
 	bIsInteracting = Survivor->bIsInteracting;
 	CurrentHealthStateEnum = Survivor->CurrentHealthStateEnum;
+	bIsHealed = Survivor->bIsHealed;
 }

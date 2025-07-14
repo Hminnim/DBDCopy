@@ -52,6 +52,8 @@ public:
 	bool bCanDrop = false;
 	bool bIsDropping = false;
 	bool bCanCharacterChange = false;
+	bool bIsHealing = false;
+	bool bIsHealed = false;
 
 	// To vault window
 	void BeginOverlapWindowVault();
@@ -80,6 +82,9 @@ public:
 
 	UFUNCTION()
 	void OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);
+
+	// For healing 
+	float CurrentHealedRate = 0.0f;
 
 protected:
 	// Called when the game starts or when spawned
@@ -131,6 +136,10 @@ private:
 	void HandleSkillCheck(int8 Type);
 	UFUNCTION()
 	void TryTriggerSkillCheck();
+	void StartHealSurvivor();
+	void StopHealSurvivor();
+	void HandleHealSurvivor(float DeltaTime);
+	void HandleHealed();
 
 	// Survivor interaction enum
 	enum class ESurvivorInteraction
@@ -153,6 +162,7 @@ private:
 	ADBDGeneratorActor* CurrentGenerator;
 	ADBDWindowActor* CurrentWindow;
 	ADBDPalletActor* CurrentPallet;
+	ADBDSurvivor* CurrentTargetSurvivor;
 	FTimerHandle SkillCheckTimer;
 	FTimerHandle SkillCheckTriggerTimer;
 	FTimerHandle VaultTimer;

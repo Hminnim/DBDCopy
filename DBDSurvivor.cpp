@@ -138,6 +138,10 @@ void ADBDSurvivor::OnTakeDamage(AActor* DamagedActor, float Damage, const UDamag
 			{
 				StopReapirGenerator();
 			}
+			if (CurrentInteractionState == ESurvivorInteraction::Heal)
+			{
+				StopHealSurvivor();
+			}
 		}
 		if (bIsCrouched)
 		{
@@ -179,6 +183,24 @@ void ADBDSurvivor::Tick(float DeltaTime)
 			}
 		}
 	}
+	// Handling healing
+	if (CurrentInteractionState == ESurvivorInteraction::Heal && bIsHealing)
+	{
+		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		{
+			if (CurrentTargetSurvivor)
+			{
+				PC->ShowInteractionProgress(CurrentTargetSurvivor->CurrentHealedRate);
+
+				if (CurrentTargetSurvivor->CurrentHealthStateEnum == EHealthState::Healthy)
+				{
+					StopHealSurvivor();
+				}
+			}
+		}
+	}
+	HandleHealSurvivor(DeltaTime);
+	HandleHealed();
 
 	// Handling bleeding
 	HandleBleeding(DeltaTime);
@@ -217,7 +239,7 @@ void ADBDSurvivor::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void ADBDSurvivor::Move(const FInputActionValue& Value)
 {
-	if (bIsInteracting || bIsActing || bIsDropping)
+	if (bIsInteracting || bIsActing || bIsDropping || bIsHealed)
 	{
 		return;
 	}
@@ -244,7 +266,7 @@ void ADBDSurvivor::Look(const FInputActionValue& Value)
 
 void ADBDSurvivor::HandleCrouch(const FInputActionValue& Value)
 {
-	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping)
+	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping || bIsHealed)
 	{
 		return;
 	}
@@ -261,7 +283,7 @@ void ADBDSurvivor::HandleCrouch(const FInputActionValue& Value)
 
 void ADBDSurvivor::Sprint(const FInputActionValue& Value)
 {
-	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping)
+	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping || bIsHealed)
 	{
 		return;
 	}
@@ -279,7 +301,7 @@ void ADBDSurvivor::Sprint(const FInputActionValue& Value)
 
 void ADBDSurvivor::Interact(const FInputActionValue& Value)
 {
-	if (CurrentInteractionState == ESurvivorInteraction::Idle || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping)
+	if (CurrentInteractionState == ESurvivorInteraction::Idle || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping || bIsHealed)
 	{
 		return;
 	}
@@ -295,17 +317,29 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 			StopReapirGenerator();
 		}
 	}
+
+	if (CurrentInteractionState == ESurvivorInteraction::Heal)
+	{
+		if (Value.Get<bool>())
+		{
+			StartHealSurvivor();
+		}
+		else
+		{
+			StopHealSurvivor();
+		}
+	}
 }
 
 void ADBDSurvivor::Action(const FInputActionValue& Value)
 {
-	if (bIsDropping || bIsVaulting)
+	if (bIsDropping || bIsVaulting || bIsHealed)
 	{
 		return;
 	}
 
 	// Skill check
-	if (CurrentInteractionState == ESurvivorInteraction::Repair)
+	if (CurrentInteractionState == ESurvivorInteraction::Repair || CurrentInteractionState == ESurvivorInteraction::Heal)
 	{
 		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
 		{
@@ -344,7 +378,7 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 
 void ADBDSurvivor::FindInteratable()
 {
-	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound)
+	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsHealed)
 	{
 		return;
 	}
@@ -359,9 +393,9 @@ void ADBDSurvivor::FindInteratable()
 	{
 		if (HitResult.GetActor())
 		{
-			if (ADBDGeneratorActor* HitGenerator = Cast<ADBDGeneratorActor>(HitResult.GetActor()))
+			if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
 			{
-				if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+				if (ADBDGeneratorActor* HitGenerator = Cast<ADBDGeneratorActor>(HitResult.GetActor()))
 				{
 					if (HitGenerator->bIsRepaired)
 					{
@@ -372,6 +406,21 @@ void ADBDSurvivor::FindInteratable()
 					CurrentGenerator = HitGenerator;
 					PC->ShowIneractionMessage("Press M1 to repair");
 					PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
+					return;
+
+				}
+
+				if (ADBDSurvivor* HitSurvivor = Cast<ADBDSurvivor>(HitResult.GetActor()))
+				{
+					if (HitSurvivor->CurrentHealthStateEnum == EHealthState::Healthy)
+					{
+						return;
+					}
+					
+					CurrentInteractionState = ESurvivorInteraction::Heal;
+					CurrentTargetSurvivor = HitSurvivor;
+					PC->ShowIneractionMessage("Press M1 to Heal Survivor");
+					PC->ShowInteractionProgress(CurrentTargetSurvivor->CurrentHealedRate);
 					return;
 				}
 			}
@@ -485,7 +534,12 @@ void ADBDSurvivor::HandleSkillCheck(int8 Type)
 
 		if (CurrentGenerator != nullptr && CurrentInteractionState == ESurvivorInteraction::Repair)
 		{
-			CurrentGenerator->CurrentRepairRate = FMath::Clamp(CurrentGenerator->CurrentRepairRate + 1.0f, 0.0f, 100.0f);;
+			CurrentGenerator->CurrentRepairRate = FMath::Clamp(CurrentGenerator->CurrentRepairRate + 1.0f, 0.0f, 100.0f);
+		}
+
+		if (CurrentGenerator != nullptr && CurrentInteractionState == ESurvivorInteraction::Heal)
+		{
+			CurrentTargetSurvivor->CurrentHealedRate = FMath::Clamp(CurrentTargetSurvivor->CurrentHealedRate + 3.0f, 0.0f, 100.0f);
 		}
 	}
 	// Good skill check
@@ -501,6 +555,10 @@ void ADBDSurvivor::HandleSkillCheck(int8 Type)
 		if (CurrentGenerator != nullptr && CurrentInteractionState == ESurvivorInteraction::Repair)
 		{
 			CurrentGenerator->CurrentRepairRate = FMath::Clamp(CurrentGenerator->CurrentRepairRate - 10.0f, 0.0f, 100.0f);;
+		}
+		if (CurrentGenerator != nullptr && CurrentInteractionState == ESurvivorInteraction::Heal)
+		{
+			CurrentTargetSurvivor->CurrentHealedRate = FMath::Clamp(CurrentTargetSurvivor->CurrentHealedRate - 10.0f, 0.0f, 100.0f);
 		}
 	}
 }
@@ -520,6 +578,95 @@ void ADBDSurvivor::TryTriggerSkillCheck()
 	if (Chance < 0.08)
 	{
 		StartSkillCheck();
+	}
+}
+
+void ADBDSurvivor::StartHealSurvivor()
+{
+	if (CurrentTargetSurvivor == nullptr)
+	{
+		return;
+	}
+
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		PC->HideActionMessage();
+		PC->HideInteractionMessage();
+	}
+
+	bIsInteracting = true;
+	bIsHealing = true;
+	CurrentTargetSurvivor->bIsHealed = true;
+
+	// Set rotation to target survivor
+	FRotator TargetSurvivorRotation = (CurrentTargetSurvivor->GetActorLocation() - GetActorLocation()).Rotation();
+	TargetSurvivorRotation.Pitch = 0.0f;
+	TargetSurvivorRotation.Roll = 0.0f;
+	SetActorRotation(TargetSurvivorRotation);
+
+	// Try trigger skillcheck
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		SkillCheckTriggerTimer,
+		this,
+		&ADBDSurvivor::TryTriggerSkillCheck,
+		1.0f,
+		true,
+		1.0f
+	);
+}
+
+void ADBDSurvivor::StopHealSurvivor()
+{
+	if (CurrentTargetSurvivor == nullptr)
+	{
+		return;
+	}
+
+	bIsInteracting = false;
+	bIsHealing = false;
+	CurrentTargetSurvivor->bIsHealed = false;
+
+	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	{
+		if (PC->bIsSkillChecking)
+		{
+			PC->StopSkillCheck();
+			HandleSkillCheck(int8(2));
+		}
+	}
+	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTriggerTimer);
+}
+
+void ADBDSurvivor::HandleHealSurvivor(float DeltaTime)
+{
+	if (bIsHealing == false) 
+	{
+		return;
+	}
+
+	CurrentTargetSurvivor->CurrentHealedRate += 6.25f * DeltaTime;
+}
+
+void ADBDSurvivor::HandleHealed()
+{
+	if (bIsHealed == false)
+	{
+		return;
+	}
+
+	if (CurrentHealedRate >= 100.0f)
+	{
+		if (CurrentHealthStateEnum == EHealthState::Injured)
+		{
+			CurrentHealthStateEnum = EHealthState::Healthy;
+			CurrentHealedRate = 0.0f;
+		}
+		if (CurrentHealthStateEnum == EHealthState::DeepWound)
+		{
+			CurrentHealthStateEnum = EHealthState::Injured;
+			CurrentHealedRate = 0.0f;
+		}
 	}
 }
 

@@ -32,6 +32,8 @@ public:
 	bool bIsInteracting;
 	UPROPERTY(BlueprintReadWrite)
 	EHealthState CurrentHealthStateEnum;
+	UPROPERTY(BlueprintReadWrite)
+	bool bIsHealed;
 
 protected:
 	UPROPERTY(BlueprintReadWrite)

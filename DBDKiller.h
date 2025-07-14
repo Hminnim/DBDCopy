@@ -10,6 +10,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraComponent.h"
+#include "Components/SpotLightComponent.h"
 #include "DBDPlayerController.h"
 #include "DBDPalletActor.h"
 #include "DBDGeneratorActor.h"
@@ -63,6 +64,8 @@ protected:
 	// Components
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	UCameraComponent* Camera;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
+	USpotLightComponent* RedStain;
 
 	// Animations
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")

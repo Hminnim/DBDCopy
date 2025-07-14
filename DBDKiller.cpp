@@ -24,6 +24,10 @@ ADBDKiller::ADBDKiller()
 
 	// Mesh config
 	GetMesh()->SetOwnerNoSee(false);
+
+	// Redstain config
+	RedStain = CreateDefaultSubobject<USpotLightComponent>("Red Stain");
+	RedStain->SetupAttachment(GetMesh());
 }
 
 void ADBDKiller::BeginOverlapCharacterChange()
@@ -72,6 +76,14 @@ void ADBDKiller::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	if (IsLocallyControlled())
+	{
+		RedStain->SetVisibility(false);
+	}
+	else
+	{
+		RedStain->SetVisibility(true);
+	}
 }
 
 // Called every frame
