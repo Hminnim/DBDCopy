@@ -19,19 +19,21 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	// Generator value
+	UPROPERTY(Replicated)
 	float CurrentRepairRate = 0.0f;
+	UPROPERTY(Replicated)
 	int32 CurrentRepairingSurvivor = 0;
+	UPROPERTY(Replicated)
+	bool bIsRepaired = false;
 	float RateSpeed[5] = { 0.0f, 1.25f, 2.125f, 2.625f, 2.75f };
 	FVector RepairLocation[4];
-	bool bIsRepaired = false;
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-	
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	UStaticMeshComponent* MeshComponent;
 
-private:
-	void Repairing(float DeltaTime);
 };

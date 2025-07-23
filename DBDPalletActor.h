@@ -20,6 +20,8 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 	// Components
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	USceneComponent* RootScene;
@@ -32,6 +34,7 @@ public:
 
 	// Values
 	bool bIsDropping = false;
+	UPROPERTY(Replicated)
 	bool bIsDropped = false;
 	FVector StartLocation[2];
 
@@ -54,9 +57,14 @@ private:
 		int32 OtherBodyIndex
 	);
 
+	UFUNCTION()
+	void OnRep_ChangePalletRotation();
+
 	// Drop pallet values
 	float DropElapsedTime = 0.0f;
 	float DropDuration = 0.2f;
 	float DropStartPitch = 0.0f;
 	float DropEndPitch = -70.0f;
+	UPROPERTY(ReplicatedUsing = OnRep_ChangePalletRotation)
+	FRotator NewPalletRotation;
 };

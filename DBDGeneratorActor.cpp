@@ -2,12 +2,15 @@
 
 
 #include "DBDGeneratorActor.h"
+#include "Net/UnrealNetwork.h"
 
 // Sets default values
 ADBDGeneratorActor::ADBDGeneratorActor()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+	
+	bReplicates = true;
 
 	// Static Mesh component
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
@@ -45,26 +48,18 @@ void ADBDGeneratorActor::BeginPlay()
 	}
 }
 
-void ADBDGeneratorActor::Repairing(float DeltaTime)
+void ADBDGeneratorActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
-	if (bIsRepaired)
-	{
-		return;
-	}
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	CurrentRepairRate += RateSpeed[CurrentRepairingSurvivor] * DeltaTime;
-
-	if (CurrentRepairRate >= 100.0f)
-	{
-		bIsRepaired = true;
-	}
+	DOREPLIFETIME(ADBDGeneratorActor, CurrentRepairRate);
+	DOREPLIFETIME(ADBDGeneratorActor, CurrentRepairingSurvivor);
+	DOREPLIFETIME(ADBDGeneratorActor, bIsRepaired);
 }
 
 // Called every frame
 void ADBDGeneratorActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
-	Repairing(DeltaTime);
 }
 

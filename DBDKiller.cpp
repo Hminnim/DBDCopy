@@ -10,6 +10,8 @@ ADBDKiller::ADBDKiller()
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
+	bReplicates = true;
+
 	// Set default character movement
 	bUseControllerRotationYaw = true;
 	GetCharacterMovement()->bOrientRotationToMovement = true;
@@ -32,7 +34,7 @@ ADBDKiller::ADBDKiller()
 
 void ADBDKiller::BeginOverlapCharacterChange()
 {
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (PC)
 	{
 		PC->ShowActionMessage("Press Space to Change Character");
 	}
@@ -41,7 +43,7 @@ void ADBDKiller::BeginOverlapCharacterChange()
 
 void ADBDKiller::EndOverlapCharacterChange()
 {
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (PC)
 	{
 		PC->HideActionMessage();
 	}
@@ -51,7 +53,7 @@ void ADBDKiller::EndOverlapCharacterChange()
 void ADBDKiller::BeginOverlapVault()
 {
 	bCanVault = true;
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (PC)
 	{
 		PC->ShowActionMessage("Press Space to Vault");
 	}
@@ -60,7 +62,7 @@ void ADBDKiller::BeginOverlapVault()
 void ADBDKiller::EndOverlapVault()
 {
 	bCanVault = false;
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (PC)
 	{
 		PC->HideActionMessage();
 	}
@@ -78,6 +80,7 @@ void ADBDKiller::BeginPlay()
 	
 	if (IsLocallyControlled())
 	{
+		PC = Cast<ADBDPlayerController>(GetController());
 		RedStain->SetVisibility(false);
 	}
 	else
@@ -98,8 +101,13 @@ void ADBDKiller::NotifyControllerChanged()
 {
 	Super::NotifyControllerChanged();
 
+	if (IsLocallyControlled())
+	{
+		PC = Cast<ADBDPlayerController>(GetController());
+	}
+
 	// Add input mapping context
-	if (APlayerController* PC = Cast<APlayerController>(Controller))
+	if (PC)
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
@@ -174,7 +182,7 @@ void ADBDKiller::Action(const FInputActionValue& Value)
 
 	if (bCanCharacterChange)
 	{
-		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		if (PC)
 		{
 			PC->HideActionMessage();
 			PC->CharacterChange();
@@ -208,7 +216,7 @@ void ADBDKiller::FindBreakable()
 
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, FireStart, FireEnd, ECollisionChannel::ECC_Visibility))
 	{
-		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		if (PC)
 		{
 			if (HitResult.GetActor())
 			{
@@ -240,7 +248,7 @@ void ADBDKiller::FindBreakable()
 		}
 	}
 
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (PC)
 	{
 		PC->HideActionMessage();
 		PC->HideInteractionProgress();
@@ -258,7 +266,7 @@ void ADBDKiller::BreakPallet()
 
 	bIsBreakingPallet = true;
 	
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (PC)
 	{
 		PC->HideActionMessage();
 	}
@@ -311,7 +319,7 @@ void ADBDKiller::BreakGenerator()
 
 	bIsBreakingGenerator = true;
 
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (PC)
 	{
 		PC->HideActionMessage();
 	}
@@ -368,7 +376,7 @@ void ADBDKiller::Attack()
 
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, FireStart, FireEnd, ECollisionChannel::ECC_Visibility))
 	{
-		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		if (PC)
 		{
 			if (HitResult.GetActor())
 			{

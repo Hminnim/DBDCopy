@@ -7,6 +7,11 @@ void ADBDPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (!IsLocalController())
+	{
+		return;
+	}
+
 	// Widget class setting
 	if (PlayUserWidgetClass)
 	{

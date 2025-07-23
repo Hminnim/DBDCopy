@@ -61,6 +61,9 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	// Cached player controller
+	ADBDPlayerController* PC;
+
 	// Components
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	UCameraComponent* Camera;

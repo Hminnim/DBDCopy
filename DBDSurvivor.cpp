@@ -2,6 +2,9 @@
 
 
 #include "DBDSurvivor.h"
+#include "Net/UnrealNetwork.h"
+#include "Engine/Engine.h"
+
 
 // Sets default values
 ADBDSurvivor::ADBDSurvivor()
@@ -37,17 +40,18 @@ void ADBDSurvivor::BeginOverlapWindowVault()
 		return;
 	}
 
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		PC->ShowActionMessage("Press Space to Vault");
 	}
+
 	VaultType = 0;
 	bCanVault = true;
 }
 
 void ADBDSurvivor::EndOverlapWindowVault()
 {
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		PC->HideActionMessage();
 	}
@@ -61,7 +65,7 @@ void ADBDSurvivor::SetCurrentWindow(ADBDWindowActor* Target)
 
 void ADBDSurvivor::BeginOverlapPallet()
 {
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		PC->ShowActionMessage("Press Space to Drop");
 	}
@@ -70,7 +74,7 @@ void ADBDSurvivor::BeginOverlapPallet()
 
 void ADBDSurvivor::EndOverlapPallet()
 {
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		PC->HideActionMessage();
 	}
@@ -79,20 +83,22 @@ void ADBDSurvivor::EndOverlapPallet()
 
 void ADBDSurvivor::BeginOverlapPalletVault()
 {
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		PC->ShowActionMessage("Press Space to Vault");
 	}
+
 	VaultType = 1;
 	bCanVault = true;
 }
 
 void ADBDSurvivor::EndOverlapPalletVault()
 {
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		PC->HideActionMessage();
 	}
+
 	bCanVault = false;
 }
 
@@ -103,52 +109,28 @@ void ADBDSurvivor::SetCurrentPallet(ADBDPalletActor* Target)
 
 void ADBDSurvivor::BeginOverlapCharacterChange()
 {
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		PC->ShowActionMessage("Press Space to Change Character");
 	}
+
 	bCanCharacterChange = true;
 }
 
 void ADBDSurvivor::EndOverlapCharacterChange()
 {
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		PC->HideActionMessage();
 	}
+
 	bCanCharacterChange = false;
 }
 
 void ADBDSurvivor::OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
 {
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("OnTakeDamge")));
-	if (CurrentHealthStateEnum == EHealthState::Healthy)
-	{
-		CurrentHealthStateEnum = EHealthState::Injured;
-		return;
-	}
-	else if (CurrentHealthStateEnum == EHealthState::Injured)
-	{
-		CurrentHealthStateEnum = EHealthState::DeepWound;
-		GetCharacterMovement()->MaxWalkSpeed = CrawlSpeed;
-
-		if (bIsInteracting)
-		{
-			if (CurrentInteractionState == ESurvivorInteraction::Repair)
-			{
-				StopReapirGenerator();
-			}
-			if (CurrentInteractionState == ESurvivorInteraction::Heal)
-			{
-				StopHealSurvivor();
-			}
-		}
-		if (bIsCrouched)
-		{
-			UnCrouch();
-		}
-		return;
-	}
+	Server_TakeDamage();
 }
 
 // Called when the game starts or when spawned
@@ -156,8 +138,25 @@ void ADBDSurvivor::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (IsLocallyControlled())
+	{
+		PC = Cast<ADBDPlayerController>(GetController());
+	}
+
 	// function bind
 	OnTakeAnyDamage.AddDynamic(this, &ADBDSurvivor::OnTakeDamage);
+}
+
+void ADBDSurvivor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ADBDSurvivor, bIsSprinting);
+	DOREPLIFETIME(ADBDSurvivor, bIsVaulting);
+	DOREPLIFETIME(ADBDSurvivor, bIsInteracting);
+	DOREPLIFETIME(ADBDSurvivor, bIsHealed);
+	DOREPLIFETIME(ADBDSurvivor, CurrentHealedRate);
+	DOREPLIFETIME(ADBDSurvivor, CurrentHealthStateEnum);
 }
 
 // Called every frame
@@ -170,48 +169,56 @@ void ADBDSurvivor::Tick(float DeltaTime)
 	// Handling repairing
 	if (CurrentInteractionState == ESurvivorInteraction::Repair && bIsInteracting)
 	{
-		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		if (CurrentGenerator)
 		{
-			if (CurrentGenerator)
+			if (IsLocallyControlled() && PC)
 			{
 				PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
+			}
+			HandleRepaiGenerator(DeltaTime);
 
-				if (CurrentGenerator->bIsRepaired)
-				{
-					StopReapirGenerator();
-				}
+			if (CurrentGenerator->bIsRepaired)
+			{
+				StopRepairGenerator();
 			}
 		}
 	}
+	Server_HandleRepairGenerator(DeltaTime);
 	// Handling healing
 	if (CurrentInteractionState == ESurvivorInteraction::Heal && bIsHealing)
 	{
-		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		if (IsLocallyControlled())
 		{
-			if (CurrentTargetSurvivor)
+			PC->ShowInteractionProgress(CurrentTargetSurvivor->CurrentHealedRate);
+		}
+		if (CurrentTargetSurvivor)
+		{
+			if (CurrentTargetSurvivor->CurrentHealthStateEnum == EHealthState::Healthy)
 			{
-				PC->ShowInteractionProgress(CurrentTargetSurvivor->CurrentHealedRate);
-
-				if (CurrentTargetSurvivor->CurrentHealthStateEnum == EHealthState::Healthy)
-				{
-					StopHealSurvivor();
-				}
+				StopHealSurvivor();
 			}
 		}
 	}
-	HandleHealSurvivor(DeltaTime);
+	Server_HandleHealSurvivor(DeltaTime);
 	HandleHealed();
 
 	// Handling bleeding
 	HandleBleeding(DeltaTime);
+
+	HandleHealthState();
 }
 
 void ADBDSurvivor::NotifyControllerChanged()
 {
 	Super::NotifyControllerChanged();
 
+	if (IsLocallyControlled())
+	{
+		PC = Cast<ADBDPlayerController>(GetController());
+	}
+
 	// Add input mapping context
-	if (APlayerController* PC = Cast<APlayerController>(Controller))
+	if (PC)
 	{
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer()))
 		{
@@ -288,14 +295,13 @@ void ADBDSurvivor::Sprint(const FInputActionValue& Value)
 		return;
 	}
 
-	bIsSprinting = Value.Get<bool>();
-	if (bIsSprinting && !bIsCrouched)
+	if (Value.Get<bool>())
 	{
-		GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+		StartSprinting();
 	}
 	else
 	{
-		GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+		StopSprinting();
 	}
 }
 
@@ -311,10 +317,12 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 		if (Value.Get<bool>())
 		{
 			StartRepairGenerator();
+			Server_StartRepairGenerator();
 		}
 		else
 		{
-			StopReapirGenerator();
+			StopRepairGenerator();
+			Server_StopRepairGenerator();
 		}
 	}
 
@@ -323,10 +331,12 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 		if (Value.Get<bool>())
 		{
 			StartHealSurvivor();
+			Server_StartHealSurvivor();
 		}
 		else
 		{
 			StopHealSurvivor();
+			Server_StopHealSurvivor();
 		}
 	}
 }
@@ -341,7 +351,7 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 	// Skill check
 	if (CurrentInteractionState == ESurvivorInteraction::Repair || CurrentInteractionState == ESurvivorInteraction::Heal)
 	{
-		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		if (IsLocallyControlled())
 		{
 			if (PC->bIsSkillChecking)
 			{
@@ -355,6 +365,7 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 	if (bCanVault)
 	{
 		StartVault();
+		Server_StartVault();
 		return;
 	}
 
@@ -363,17 +374,181 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 		if (CurrentPallet)
 		{
 			StartDrop();
+			Server_StartDrop();
 		}
 	}
 
 	if (bCanCharacterChange)
 	{
-		if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+		if (IsLocallyControlled())
 		{
 			PC->HideActionMessage();
 			PC->CharacterChange();
 		}
 	}
+}
+
+void ADBDSurvivor::StartSprinting()
+{
+	if (IsLocallyControlled())
+	{
+		Server_SetSprinting(true);
+
+		bIsSprinting = true;
+		UpdateMovementSpeed();
+	}
+}
+
+void ADBDSurvivor::StopSprinting()
+{
+	if (IsLocallyControlled())
+	{
+		Server_SetSprinting(false);
+
+		bIsSprinting = false;
+		UpdateMovementSpeed();
+	}
+}
+
+void ADBDSurvivor::UpdateMovementSpeed()
+{
+	if (bIsSprinting && !bIsCrouched)
+	{
+		GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+	}
+	else
+	{
+		GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+	}
+}
+
+void ADBDSurvivor::OnRep_IsSprinting()
+{
+	UpdateMovementSpeed();
+}
+
+void ADBDSurvivor::Server_SetSprinting_Implementation(bool bNewSprinting)
+{
+	bIsSprinting = bNewSprinting;
+	UpdateMovementSpeed();
+}
+
+void ADBDSurvivor::StartVault()
+{
+	if (!bCanVault || bIsVaulting || CurrentHealthStateEnum == EHealthState::DeepWound)
+	{
+		return;
+	}
+
+	bIsVaulting = true;
+
+	if (VaultType == 0 && CurrentWindow)
+	{
+		FVector VaultStartLocation = CurrentWindow->StartLocation[0];
+
+		// Find front location of current window
+		double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
+		if (MinDistance > FVector::Distance(GetActorLocation(), CurrentWindow->StartLocation[1]))
+		{
+			VaultStartLocation = CurrentWindow->StartLocation[1];
+		}
+
+		VaultStartLocation.Z = GetActorLocation().Z;
+
+		// Move to front of current window
+		SetActorLocation(VaultStartLocation);
+		FRotator VaultRotation = (CurrentWindow->GetActorLocation() - GetActorLocation()).Rotation();
+		VaultRotation.Pitch = 0.0f;
+		VaultRotation.Roll = 0.0f;
+		SetActorRotation(VaultRotation);
+	}
+	if (VaultType == 1 && CurrentPallet)
+	{
+		FVector VaultStartLocation = CurrentPallet->StartLocation[0];
+
+		// Find front location of current pallet
+		double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
+		if (MinDistance > FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[1]))
+		{
+			VaultStartLocation = CurrentPallet->StartLocation[1];
+		}
+
+		VaultStartLocation.Z = GetActorLocation().Z;
+
+		// Move to front of current pallet
+		SetActorLocation(VaultStartLocation);
+		FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({ 30.0f,0.0f,0.0f }));
+		FRotator VaultRotation = (PalletTriggerBoxLocation - GetActorLocation()).Rotation();
+		VaultRotation.Pitch = 0.0f;
+		VaultRotation.Roll = 0.0f;
+		SetActorRotation(VaultRotation);
+	}
+
+	// Set vault speed
+	float PlayRate = bIsSprinting && !bIsCrouched ? 3.16f : 1.0f;
+	float PlayTime = bIsSprinting && !bIsCrouched ? 0.5f : 1.58f;
+
+	// Change collision
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+
+	// Play animation
+	GetMesh()->GetAnimInstance()->Montage_Play(VaultAnim, PlayRate);
+
+	// Stop vault
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		VaultTimer,
+		FTimerDelegate::CreateLambda([&]() {
+			StopVault();
+			if (IsLocallyControlled())
+			{
+				Server_StopVault();
+			}
+			}),
+		PlayTime,
+		false
+	);
+
+}
+
+void ADBDSurvivor::StopVault()
+{
+	bIsVaulting = false;
+
+	// Change collision
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+}
+
+void ADBDSurvivor::MultiCast_StartVault_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StartVault();
+	}
+}
+
+void ADBDSurvivor::MultiCast_StopVault_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StopVault();
+	}
+}
+
+void ADBDSurvivor::Server_StartVault_Implementation()
+{
+	StartVault();
+	MultiCast_StartVault();
+}
+
+void ADBDSurvivor::Server_StopVault_Implementation()
+{
+	StopVault();
+	MultiCast_StopVault();
 }
 
 void ADBDSurvivor::FindInteratable()
@@ -393,45 +568,54 @@ void ADBDSurvivor::FindInteratable()
 	{
 		if (HitResult.GetActor())
 		{
-			if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+			if (ADBDGeneratorActor* HitGenerator = Cast<ADBDGeneratorActor>(HitResult.GetActor()))
 			{
-				if (ADBDGeneratorActor* HitGenerator = Cast<ADBDGeneratorActor>(HitResult.GetActor()))
+				if (HitGenerator->bIsRepaired)
 				{
-					if (HitGenerator->bIsRepaired)
-					{
-						return;
-					}
+					return;
+				}
 
-					CurrentInteractionState = ESurvivorInteraction::Repair;
-					CurrentGenerator = HitGenerator;
+				CurrentInteractionState = ESurvivorInteraction::Repair;
+				CurrentGenerator = HitGenerator;
+				Server_SetCurrentGenerator(HitGenerator);
+				if (IsLocallyControlled())
+				{
 					PC->ShowIneractionMessage("Press M1 to repair");
 					PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
-					return;
+				}
+				
+				return;
 
+			}
+
+			if (ADBDSurvivor* HitSurvivor = Cast<ADBDSurvivor>(HitResult.GetActor()))
+			{
+				if (HitSurvivor->CurrentHealthStateEnum == EHealthState::Healthy)
+				{
+					return;
 				}
 
-				if (ADBDSurvivor* HitSurvivor = Cast<ADBDSurvivor>(HitResult.GetActor()))
+				CurrentInteractionState = ESurvivorInteraction::Heal;
+				CurrentTargetSurvivor = HitSurvivor;
+				Server_SetTargetSurvivor(HitSurvivor);
+				if (IsLocallyControlled())
 				{
-					if (HitSurvivor->CurrentHealthStateEnum == EHealthState::Healthy)
-					{
-						return;
-					}
-					
-					CurrentInteractionState = ESurvivorInteraction::Heal;
-					CurrentTargetSurvivor = HitSurvivor;
 					PC->ShowIneractionMessage("Press M1 to Heal Survivor");
 					PC->ShowInteractionProgress(CurrentTargetSurvivor->CurrentHealedRate);
-					return;
 				}
+				return;
 			}
 		}
 	}
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+
+	// Couldn't find interactable
+	CurrentInteractionState = ESurvivorInteraction::Idle;
+	if (IsLocallyControlled() && PC)
 	{
-		CurrentInteractionState = ESurvivorInteraction::Idle;
 		PC->HideInteractionMessage();
 		PC->HideInteractionProgress();
 	}
+
 }
 
 void ADBDSurvivor::StartRepairGenerator()
@@ -440,7 +624,7 @@ void ADBDSurvivor::StartRepairGenerator()
 	{
 		return;
 	}
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		PC->HideInteractionMessage();
 	}
@@ -470,22 +654,30 @@ void ADBDSurvivor::StartRepairGenerator()
 	CurrentGenerator->CurrentRepairingSurvivor = FMath::Clamp(++CurrentGenerator->CurrentRepairingSurvivor, 0, 4);
 
 	// Try trigger skillcheck
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		SkillCheckTriggerTimer,
-		this,
-		&ADBDSurvivor::TryTriggerSkillCheck,
-		1.0f,
-		true,
-		1.0f
-	);
+	if (IsLocallyControlled())
+	{
+		GetWorld()->GetTimerManager().SetTimer
+		(
+			SkillCheckTriggerTimer,
+			this,
+			&ADBDSurvivor::TryTriggerSkillCheck,
+			1.0f,
+			true,
+			1.0f
+		);
+	}
 }
 
-void ADBDSurvivor::StopReapirGenerator()
+void ADBDSurvivor::StopRepairGenerator()
 {
+	if (!CurrentGenerator)
+	{
+		return;
+	}
+
 	bIsInteracting = false;
 	CurrentGenerator->CurrentRepairingSurvivor = FMath::Clamp(--CurrentGenerator->CurrentRepairingSurvivor, 0, 4);
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		if (PC->bIsSkillChecking)
 		{
@@ -496,12 +688,86 @@ void ADBDSurvivor::StopReapirGenerator()
 	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTriggerTimer);
 }
 
+void ADBDSurvivor::HandleRepaiGenerator(float DeltaTime)
+{
+	if (!bIsInteracting || !CurrentGenerator || CurrentInteractionState != ESurvivorInteraction::Repair || CurrentHealthStateEnum == EHealthState::DeepWound)
+	{
+		return;
+	}
+
+	if (CurrentGenerator->CurrentRepairRate >= 100.0f)
+	{
+		CurrentGenerator->bIsRepaired = true;
+		StopRepairGenerator();
+		Server_StopRepairGenerator();
+	}
+}
+
+void ADBDSurvivor::Server_UpdateGeneratorRepairRate_Implementation(float Amount)
+{
+	CurrentGenerator->CurrentRepairRate = FMath::Clamp(CurrentGenerator->CurrentRepairRate + Amount, 0.0f, 100.0f);
+
+	if (CurrentGenerator->CurrentRepairRate >= 100.0f)
+	{
+		CurrentGenerator->bIsRepaired = true;
+		StopRepairGenerator();
+		Server_StopRepairGenerator();
+	}
+}
+
+void ADBDSurvivor::Server_StartRepairGenerator_Implementation()
+{
+	StartRepairGenerator();
+	MultiCast_StartRepairGenerator();
+	bIsReparingGenerator = true;
+}
+
+void ADBDSurvivor::Server_StopRepairGenerator_Implementation()
+{
+	StopRepairGenerator();
+	MultiCast_StopRepairGenerator();
+	bIsReparingGenerator = false;
+}
+
+void ADBDSurvivor::MultiCast_StartRepairGenerator_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StartRepairGenerator();
+	}
+}
+
+void ADBDSurvivor::MultiCast_StopRepairGenerator_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StopRepairGenerator();
+	}
+}
+
+void ADBDSurvivor::Server_SetCurrentGenerator_Implementation(ADBDGeneratorActor* TargetGenerator)
+{
+	CurrentGenerator = TargetGenerator;
+}
+
+void ADBDSurvivor::Server_HandleRepairGenerator(float DeltaTIme)
+{
+	if (!HasAuthority() || !bIsReparingGenerator)
+	{
+		return;
+	}
+
+	CurrentGenerator->CurrentRepairRate += RepairSpeed[CurrentGenerator->CurrentRepairingSurvivor] * DeltaTIme;
+}
+
 void ADBDSurvivor::StartSkillCheck()
 {
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (!IsLocallyControlled())
 	{
-		PC->ShowSkillCheck();
+		return;
 	}
+
+	PC->ShowSkillCheck();
 
 	GetWorld()->GetTimerManager().SetTimer
 	(
@@ -515,11 +781,12 @@ void ADBDSurvivor::StartSkillCheck()
 
 void ADBDSurvivor::FailedSkillCheck()
 {
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (!IsLocallyControlled())
 	{
-		PC->StopSkillCheck();
+		return;
 	}
 
+	PC->StopSkillCheck();
 	HandleSkillCheck((int8)2);
 }
 
@@ -534,12 +801,12 @@ void ADBDSurvivor::HandleSkillCheck(int8 Type)
 
 		if (CurrentGenerator != nullptr && CurrentInteractionState == ESurvivorInteraction::Repair)
 		{
-			CurrentGenerator->CurrentRepairRate = FMath::Clamp(CurrentGenerator->CurrentRepairRate + 1.0f, 0.0f, 100.0f);
+			Server_UpdateGeneratorRepairRate(1.0f);
 		}
 
 		if (CurrentGenerator != nullptr && CurrentInteractionState == ESurvivorInteraction::Heal)
 		{
-			CurrentTargetSurvivor->CurrentHealedRate = FMath::Clamp(CurrentTargetSurvivor->CurrentHealedRate + 3.0f, 0.0f, 100.0f);
+			Server_UpdateTargetSurvivorHealRate(3.0f);
 		}
 	}
 	// Good skill check
@@ -554,24 +821,25 @@ void ADBDSurvivor::HandleSkillCheck(int8 Type)
 
 		if (CurrentGenerator != nullptr && CurrentInteractionState == ESurvivorInteraction::Repair)
 		{
-			CurrentGenerator->CurrentRepairRate = FMath::Clamp(CurrentGenerator->CurrentRepairRate - 10.0f, 0.0f, 100.0f);;
+			Server_UpdateGeneratorRepairRate(-10.0f);
 		}
 		if (CurrentGenerator != nullptr && CurrentInteractionState == ESurvivorInteraction::Heal)
 		{
-			CurrentTargetSurvivor->CurrentHealedRate = FMath::Clamp(CurrentTargetSurvivor->CurrentHealedRate - 10.0f, 0.0f, 100.0f);
+			Server_UpdateTargetSurvivorHealRate(-10.0f);
 		}
 	}
 }
 
 void ADBDSurvivor::TryTriggerSkillCheck()
 {
-	ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController());
-	if (PC)
+	if (!IsLocallyControlled())
 	{
-		if (PC->bIsSkillChecking)
-		{
-			return;
-		}
+		return;
+	}
+
+	if (PC->bIsSkillChecking)
+	{
+		return;
 	}
 
 	float Chance = FMath::FRand(); // 0.0 ~ 1.0
@@ -588,7 +856,7 @@ void ADBDSurvivor::StartHealSurvivor()
 		return;
 	}
 
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		PC->HideActionMessage();
 		PC->HideInteractionMessage();
@@ -605,15 +873,18 @@ void ADBDSurvivor::StartHealSurvivor()
 	SetActorRotation(TargetSurvivorRotation);
 
 	// Try trigger skillcheck
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		SkillCheckTriggerTimer,
-		this,
-		&ADBDSurvivor::TryTriggerSkillCheck,
-		1.0f,
-		true,
-		1.0f
-	);
+	if (!IsLocallyControlled())
+	{
+		GetWorld()->GetTimerManager().SetTimer
+		(
+			SkillCheckTriggerTimer,
+			this,
+			&ADBDSurvivor::TryTriggerSkillCheck,
+			1.0f,
+			true,
+			1.0f
+		);
+	}
 }
 
 void ADBDSurvivor::StopHealSurvivor()
@@ -627,7 +898,7 @@ void ADBDSurvivor::StopHealSurvivor()
 	bIsHealing = false;
 	CurrentTargetSurvivor->bIsHealed = false;
 
-	if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(GetController()))
+	if (IsLocallyControlled())
 	{
 		if (PC->bIsSkillChecking)
 		{
@@ -650,7 +921,7 @@ void ADBDSurvivor::HandleHealSurvivor(float DeltaTime)
 
 void ADBDSurvivor::HandleHealed()
 {
-	if (bIsHealed == false)
+	if (bIsHealed == false || !HasAuthority())
 	{
 		return;
 	}
@@ -670,95 +941,54 @@ void ADBDSurvivor::HandleHealed()
 	}
 }
 
-void ADBDSurvivor::StartVault()
+void ADBDSurvivor::Server_SetTargetSurvivor_Implementation(ADBDSurvivor* TargetSurvivor)
 {
-	if (!bCanVault || bIsVaulting || CurrentHealthStateEnum == EHealthState::DeepWound)
+	CurrentTargetSurvivor = TargetSurvivor;
+}
+
+void ADBDSurvivor::Server_StartHealSurvivor_Implementation()
+{
+	StartHealSurvivor();
+}
+
+void ADBDSurvivor::Server_StopHealSurvivor_Implementation()
+{
+	StopHealSurvivor();
+}
+
+void ADBDSurvivor::Server_UpdateTargetSurvivorHealRate_Implementation(float Amount)
+{
+	if (CurrentTargetSurvivor)
+	{
+		CurrentTargetSurvivor->CurrentHealedRate = FMath::Clamp(CurrentTargetSurvivor->CurrentHealedRate + Amount, 0.0f, 100.0f);
+	}
+}
+
+void ADBDSurvivor::Server_HandleHealSurvivor(float DeltaTime)
+{
+	if (bIsHealing == false || !HasAuthority())
 	{
 		return;
 	}
 
-	bIsVaulting = true;
-
-	if (VaultType == 0 && CurrentWindow)
-	{
-		VaultStartLocation = CurrentWindow->StartLocation[0];
-		VaultEndLocation = CurrentWindow->StartLocation[1];
-		VaultTopLocation = CurrentWindow->TopLocation;
-
-		// Find front location of current window
-		double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
-		if (MinDistance > FVector::Distance(GetActorLocation(), CurrentWindow->StartLocation[1]))
-		{
-			VaultStartLocation = VaultEndLocation;
-			VaultEndLocation = CurrentWindow->StartLocation[0];
-		}
-
-		VaultStartLocation.Z = GetActorLocation().Z;
-		VaultEndLocation.Z = GetActorLocation().Z;
-
-		// Move to front of current window
-		SetActorLocation(VaultStartLocation);
-		FRotator VaultRotation = (CurrentWindow->GetActorLocation() - GetActorLocation()).Rotation();
-		VaultRotation.Pitch = 0.0f;
-		VaultRotation.Roll = 0.0f;
-		SetActorRotation(VaultRotation);
-	}
-	if (VaultType == 1 && CurrentPallet)
-	{
-		VaultStartLocation = CurrentPallet->StartLocation[0];
-		VaultEndLocation = CurrentPallet->StartLocation[1];
-
-		// Find front location of current pallet
-		double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
-		if (MinDistance > FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[1]))
-		{
-			VaultStartLocation = VaultEndLocation;
-			VaultEndLocation = CurrentPallet->StartLocation[0];
-		}
-
-		VaultStartLocation.Z = GetActorLocation().Z;
-		VaultEndLocation.Z = GetActorLocation().Z;
-
-		// Move to front of current pallet
-		SetActorLocation(VaultStartLocation);
-		FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({30.0f,0.0f,0.0f}));
-		FRotator VaultRotation = (PalletTriggerBoxLocation - GetActorLocation()).Rotation();
-		VaultRotation.Pitch = 0.0f;
-		VaultRotation.Roll = 0.0f;
-		SetActorRotation(VaultRotation);
-	}
-
-	// Set vault speed
-	float PlayRate = bIsSprinting && !bIsCrouched  ? 3.16f : 1.0f;
-	float PlayTime = bIsSprinting && !bIsCrouched ? 0.5f : 1.58f;
-
-	// Change collision
-	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	GetCharacterMovement()->SetMovementMode(MOVE_Flying);
-
-	// Play animation
-	GetMesh()->GetAnimInstance()->Montage_Play(VaultAnim, PlayRate);
-
-	// Stop vault
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		VaultTimer,
-		this,
-		&ADBDSurvivor::StopVault,
-		PlayTime,
-		false
-	);
+	CurrentTargetSurvivor->CurrentHealedRate += 6.25f * DeltaTime;
 }
 
-void ADBDSurvivor::StopVault()
-{
-	bIsVaulting = false;
 
-	// Change collision
-	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+void ADBDSurvivor::MultiCast_StartHealSurvivor_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StartHealSurvivor();
+	}
+}
+
+void ADBDSurvivor::MultiCast_StopHealSurvivor_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StopHealSurvivor();
+	}
 }
 
 void ADBDSurvivor::HandleBleeding(float DeltaTime)
@@ -787,10 +1017,10 @@ void ADBDSurvivor::HandleBleeding(float DeltaTime)
 
 void ADBDSurvivor::StartDrop()
 {
-	VaultStartLocation = CurrentPallet->StartLocation[0];
-	VaultEndLocation = CurrentPallet->StartLocation[1];
-
 	// Find front location of current pallet
+	FVector VaultStartLocation = CurrentPallet->StartLocation[0];
+	FVector VaultEndLocation = CurrentPallet->StartLocation[1];
+
 	double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
 	if (MinDistance > FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[1]))
 	{
@@ -816,8 +1046,13 @@ void ADBDSurvivor::StartDrop()
 	GetWorld()->GetTimerManager().SetTimer
 	(
 		DropTimer,
-		this,
-		&ADBDSurvivor::StopDrop,
+		FTimerDelegate::CreateLambda([&]() {
+			StopDrop();
+			if (IsLocallyControlled())
+			{
+				Server_StopDrop();
+			}
+			}),
 		0.2f,
 		false
 	);
@@ -828,4 +1063,69 @@ void ADBDSurvivor::StopDrop()
 	bIsDropping = false;
 	bCanDrop = false;
 	CurrentPallet->EndDrop();
+}
+
+void ADBDSurvivor::HandleHealthState()
+{
+	if (CurrentHealthStateEnum == EHealthState::DeepWound)
+	{
+		GetCharacterMovement()->MaxWalkSpeed = CrawlSpeed;
+
+		if (bIsInteracting)
+		{
+			if (CurrentInteractionState == ESurvivorInteraction::Repair)
+			{
+				StopRepairGenerator();
+			}
+			if (CurrentInteractionState == ESurvivorInteraction::Heal)
+			{
+				StopHealSurvivor();
+			}
+		}
+		if (bIsCrouched)
+		{
+			UnCrouch();
+		}
+		return;
+	}
+}
+
+void ADBDSurvivor::Server_StartDrop_Implementation()
+{
+	StartDrop();
+	MultiCast_StartDrop();
+}
+
+void ADBDSurvivor::Server_StopDrop_Implementation()
+{
+	StopDrop();
+	MultiCast_StopDrop();
+}
+
+void ADBDSurvivor::MultiCast_StartDrop_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StartDrop();
+	}
+}
+
+void ADBDSurvivor::MultiCast_StopDrop_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StopDrop();
+	}
+}
+
+void ADBDSurvivor::Server_TakeDamage_Implementation()
+{
+	if (CurrentHealthStateEnum == EHealthState::Healthy)
+	{
+		CurrentHealthStateEnum = EHealthState::Injured;
+	}
+	else if (CurrentHealthStateEnum == EHealthState::Injured)
+	{
+		CurrentHealthStateEnum = EHealthState::DeepWound;
+	}
 }

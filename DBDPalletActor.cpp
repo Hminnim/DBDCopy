@@ -3,12 +3,15 @@
 
 #include "DBDPalletActor.h"
 #include "DBDSurvivor.h"
+#include "Net/UnrealNetwork.h"
 
 // Sets default values
 ADBDPalletActor::ADBDPalletActor()
 {
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+
+	bReplicates = true;
 
 	// RootScene default values
 	RootScene = CreateDefaultSubobject<USceneComponent>("Root Scene");
@@ -17,6 +20,7 @@ ADBDPalletActor::ADBDPalletActor()
 	// PalletScene default values
 	PalletScene = CreateDefaultSubobject<USceneComponent>("Pallet Scene");
 	PalletScene->SetupAttachment(RootScene);
+	PalletScene->SetIsReplicated(true);
 
 	// PalletStaticMesh default values
 	PalletStaticMesh = CreateDefaultSubobject<UStaticMeshComponent>("Pallet Static Mesh");
@@ -67,6 +71,14 @@ void ADBDPalletActor::Tick(float DeltaTime)
 	DropPallet(DeltaTime);
 }
 
+void ADBDPalletActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ADBDPalletActor, bIsDropped);
+	DOREPLIFETIME(ADBDPalletActor, NewPalletRotation);
+}
+
 void ADBDPalletActor::StartDrop()
 {
 	bIsDropping = true;
@@ -74,8 +86,7 @@ void ADBDPalletActor::StartDrop()
 
 void ADBDPalletActor::DropPallet(float DeltaTime)
 {
-
-	if (!bIsDropping || bIsDropped) 
+	if (!bIsDropping || bIsDropped || !HasAuthority()) 
 	{
 		return;
 	}
@@ -87,9 +98,9 @@ void ADBDPalletActor::DropPallet(float DeltaTime)
 		float Alpha = DropElapsedTime / DropDuration;
 		float NewPitch = FMath::Lerp(DropStartPitch, DropEndPitch, Alpha);
 
-		FRotator NewRotation = PalletScene->GetRelativeRotation();
-		NewRotation.Pitch = NewPitch;
-		PalletScene->SetRelativeRotation(NewRotation);
+		NewPalletRotation = PalletScene->GetRelativeRotation();
+		NewPalletRotation.Pitch = NewPitch;
+		PalletScene->SetRelativeRotation(NewPalletRotation);
 	}
 }
 
@@ -142,5 +153,10 @@ void ADBDPalletActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AAc
 			OverlappedSurvivor->EndOverlapPalletVault();
 		}
 	}
+}
+
+void ADBDPalletActor::OnRep_ChangePalletRotation()
+{
+	PalletScene->SetRelativeRotation(NewPalletRotation);
 }
 

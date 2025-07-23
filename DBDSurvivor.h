@@ -44,15 +44,19 @@ public:
 	virtual void NotifyControllerChanged() override;
 
 	// Survivor state flags
+	UPROPERTY(ReplicatedUsing = OnRep_IsSprinting)
 	bool bIsSprinting = false;
+	UPROPERTY(Replicated)
 	bool bIsInteracting = false;
 	bool bIsActing = false;
 	bool bCanVault = false;
+	UPROPERTY(Replicated)
 	bool bIsVaulting = false;
 	bool bCanDrop = false;
 	bool bIsDropping = false;
 	bool bCanCharacterChange = false;
 	bool bIsHealing = false;
+	UPROPERTY(Replicated)
 	bool bIsHealed = false;
 
 	// To vault window
@@ -74,7 +78,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* VaultAnim;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "HealthState")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "HealthState")
 	EHealthState CurrentHealthStateEnum = EHealthState::Healthy;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Blood")
@@ -84,11 +88,17 @@ public:
 	void OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);
 
 	// For healing 
+	UPROPERTY(Replicated)
 	float CurrentHealedRate = 0.0f;
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	// Cached player controller
+	ADBDPlayerController* PC;
 
 	// Components
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
@@ -127,19 +137,80 @@ private:
 	void Interact(const FInputActionValue& Value);
 	void Action(const FInputActionValue& Value);
 
+	// Sprint
+	void StartSprinting();
+	void StopSprinting();
+	void UpdateMovementSpeed();
+	UFUNCTION()
+	void OnRep_IsSprinting();
+	UFUNCTION(Server, Reliable)
+	void Server_SetSprinting(bool bNewSprinting);
+
+    // Vault
+	void StartVault();
+	void StopVault();
+	int8 VaultType = 0;
+	UFUNCTION(Server, Reliable)
+	void Server_StartVault();
+	UFUNCTION(Server, Reliable)
+	void Server_StopVault();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StartVault();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StopVault();
+	//UFUNCTION(Client, Reliable)
+	//void CancelVault();
+
 	// Survivor intreact function
 	void FindInteratable();
+
+	// Repair generator
 	void StartRepairGenerator();
-	void StopReapirGenerator();
+	void StopRepairGenerator();
+	void HandleRepaiGenerator(float DeltaTime);
+	float RepairSpeed[5] = { 0.0f, 1.25f, 1.0525f, 0.875f, 0.6875f };
+	ADBDGeneratorActor* CurrentGenerator;
+	UFUNCTION(Server, Reliable)
+	void Server_StartRepairGenerator();
+	UFUNCTION(Server, Reliable)
+	void Server_StopRepairGenerator();
+	UFUNCTION(Server, Reliable)
+	void Server_UpdateGeneratorRepairRate(float Amount);
+	UFUNCTION(Server, Reliable)
+	void Server_SetCurrentGenerator(ADBDGeneratorActor* TargetGenerator);
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StartRepairGenerator();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StopRepairGenerator();
+	bool bIsReparingGenerator = false; // For server
+	void Server_HandleRepairGenerator(float DeltaTIme);
+
+	// Skill check
 	void StartSkillCheck();
 	void FailedSkillCheck();
 	void HandleSkillCheck(int8 Type);
 	UFUNCTION()
 	void TryTriggerSkillCheck();
+
+	// Heal survivor
+	ADBDSurvivor* CurrentTargetSurvivor;
 	void StartHealSurvivor();
 	void StopHealSurvivor();
 	void HandleHealSurvivor(float DeltaTime);
 	void HandleHealed();
+	UFUNCTION(Server, Reliable)
+	void Server_SetTargetSurvivor(ADBDSurvivor* TargetSurvivor);
+	UFUNCTION(Server, Reliable)
+	void Server_StartHealSurvivor();
+	UFUNCTION(Server, Reliable)
+	void Server_StopHealSurvivor();
+	UFUNCTION(Server, Reliable)
+	void Server_UpdateTargetSurvivorHealRate(float Amount);
+	void Server_HandleHealSurvivor(float DeltaTime);
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StartHealSurvivor();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StopHealSurvivor();
 
 	// Survivor interaction enum
 	enum class ESurvivorInteraction
@@ -150,19 +221,9 @@ private:
 	};
 	ESurvivorInteraction CurrentInteractionState = ESurvivorInteraction::Idle;
 	
-	// Vault
-	void StartVault();
-	void StopVault();
-	int8 VaultType = 0;
-	FVector VaultStartLocation;
-	FVector VaultEndLocation;
-	FVector VaultTopLocation;
-
 	// Values
-	ADBDGeneratorActor* CurrentGenerator;
 	ADBDWindowActor* CurrentWindow;
 	ADBDPalletActor* CurrentPallet;
-	ADBDSurvivor* CurrentTargetSurvivor;
 	FTimerHandle SkillCheckTimer;
 	FTimerHandle SkillCheckTriggerTimer;
 	FTimerHandle VaultTimer;
@@ -170,6 +231,20 @@ private:
 	void HandleBleeding(float DeltaTime);
 	float BleedingTimer = 0.0f;
 
+	// Drop pallet
 	void StartDrop();
 	void StopDrop();
+	UFUNCTION(Server, Reliable)
+	void Server_StartDrop();
+	UFUNCTION(Server, Reliable)
+	void Server_StopDrop();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StartDrop();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StopDrop();
+
+	// Handle Survivor's health state
+	UFUNCTION(Server, Reliable)
+	void Server_TakeDamage();
+	void HandleHealthState();
 };
