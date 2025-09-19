@@ -11,15 +11,18 @@
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraComponent.h"
 #include "Components/SpotLightComponent.h"
+#include "Components/BoxComponent.h"
 #include "DBDPlayerController.h"
 #include "DBDPalletActor.h"
 #include "DBDGeneratorActor.h"
 #include "DBDWindowActor.h"
+#include "DBDHookActor.h"
 #include "DBDKiller.generated.h"
 
 class UInputMappingContext;
 class UInputAction;
 class UCameraComponent;
+class ADBDSurvivor;
 
 UCLASS()
 class DBDCOPY_API ADBDKiller : public ACharacter
@@ -47,6 +50,13 @@ public:
 	bool bIsAttacking = false;
 	bool bCanVault = false;
 	bool bIsVaulting = false;
+	UPROPERTY(ReplicatedUsing = OnRep_CanPickUp)
+	bool bCanPickUp = false;
+	bool bIsPickingUp = false;
+	UPROPERTY(ReplicatedUsing = OnRep_IsCarrying)
+	bool bIsCarrying = false;
+	bool bCanHook = false;
+	bool bIsHooking = false;
 
 	// To change character
 	void BeginOverlapCharacterChange();
@@ -61,6 +71,8 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 	// Cached player controller
 	ADBDPlayerController* PC;
 
@@ -69,6 +81,8 @@ protected:
 	UCameraComponent* Camera;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	USpotLightComponent* RedStain;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
+	UBoxComponent* FindingSurvivorBox;
 
 	// Animations
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
@@ -76,7 +90,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* AttackAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* CarryingAttackAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* VaultAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* PickUpAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* HookAnim;
 
 	// Killer speed values
 	float WalkSpeed = 460.0f;
@@ -100,21 +120,124 @@ private:
 	void Interact(const FInputActionValue& Value);
 	void Action(const FInputActionValue& Value);
 
-	void FindBreakable();
+	void FindAction();
+
+	// Break pallet
 	void BreakPallet();
 	void EndBreakPallet();
+	UFUNCTION(Server, Reliable)
+	void Server_SetCurrentPallet(ADBDPalletActor* TargetPallet);
+	UFUNCTION(Server, Reliable)
+	void Server_BreakPallet();
+	UFUNCTION(Server, Reliable)
+	void Server_EndbreakPallet();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_BreakPallet();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_EndBreakPallet();
+
+	// Break generator
 	void BreakGenerator();
 	void EndBreakGenerator();
+	UFUNCTION(Server, Reliable)
+	void Server_SetCurrenetGenerator(ADBDGeneratorActor* TargetGenerator);
+	UFUNCTION(Server, Reliable)
+	void Server_BreakGenerator();
+	UFUNCTION(Server, Reliable)
+	void Server_EndBreakGenerator();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_BreakGenerator();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_EndBreakGenerator();
+
+	// Attack 
 	void Attack();
 	void EndAttack();
+	void TryAttack();
+	UFUNCTION(Server, Reliable)
+	void Server_Attack();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_Attack();
+	UFUNCTION(Server, Reliable)
+	void Server_TryAttack(FVector FireStart, FVector FireEnd);
+	UFUNCTION(Server,Reliable)
+	void Server_HandleAttackDelay(bool bIsSuccess);
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_HandleAttackDelay(bool bIsSuccess);
+
+	// Vault
 	void Vault();
 	void EndVault();
 	void EndVaultAnim();
+	UFUNCTION(Server, Reliable)
+	void Server_Vault();
+	UFUNCTION(Server, Reliable)
+	void Server_EndVault();
+	UFUNCTION(Server, Reliable)
+	void Server_EndVaultAnim();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_Vault();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_EndVault();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_EndVaultAnim();
 
+	// Pick up survivor
+	UFUNCTION()
+	void OnSurvivorOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, 
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
+		const FHitResult& SweepResult);
+	UFUNCTION()
+	void OnSurvivorOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, 
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+	UFUNCTION()
+	void OnRep_CanPickUp();
+	UFUNCTION(Server, Reliable)
+	void SetTargetSurvivor(ADBDSurvivor* NewSurvivor);
+	void HandleTargetSurvivor();
+	void TryPickUp();
+	void StartPickUp();
+	void StopPickUp();
+	void StartCarryingSurvivor();
+	void StopCarryingSurvivor();
+	UFUNCTION()
+	void OnRep_IsCarrying();
+	UFUNCTION(Server, Reliable)
+	void Server_StartPickUp();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StartPickUp();
+	void TryDropDown();
+	UFUNCTION(Server, Reliable)
+	void Server_StartDropDown();
+
+	// Hook survivor
+	void StartHookSurvivor();
+	void StopHookSurvivor();
+	void HookingSurvivor();
+	UFUNCTION(Server, Reliable)
+	void SetCurrentHook(ADBDHookActor* NewHook);
+	UFUNCTION(Server, Reliable)
+	void Server_StartHookSurvivor();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StartHookSurvivor();
+
+	// Replicated Actors
+	UPROPERTY(Replicated)
 	ADBDPalletActor* CurrentPallet;
+	UPROPERTY(Replicated)
 	ADBDGeneratorActor* CurrentGenerator;
 	ADBDWindowActor* CurrentWindow;
+	UPROPERTY(Replicated)
+	ADBDSurvivor* CurrentTargetSurvivor;
+	UPROPERTY(Replicated)
+	ADBDHookActor* CurrentHook;
+
+	// TimerHandles
 	FTimerHandle BreakTimerHandle;
 	FTimerHandle AttackTimerHandle;
 	FTimerHandle VaultTimerHandle;
+	FTimerHandle PickUpTimerHandle;
+	FTimerHandle CarryingTimerHandle;
+	FTimerHandle HookingTimerHandle;
+	FTimerHandle HookedTImerHandle;
 };

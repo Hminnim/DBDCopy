@@ -3,6 +3,8 @@
 
 #include "DBDKiller.h"
 #include "DBDSurvivor.h"
+#include "Net/UnrealNetwork.h"
+#include "Engine/Engine.h"
 
 // Sets default values
 ADBDKiller::ADBDKiller()
@@ -30,8 +32,18 @@ ADBDKiller::ADBDKiller()
 	// Redstain config
 	RedStain = CreateDefaultSubobject<USpotLightComponent>("Red Stain");
 	RedStain->SetupAttachment(GetMesh());
+
+	// Finding survivor box config
+	FindingSurvivorBox = CreateDefaultSubobject<UBoxComponent>(TEXT("FindingSurvivorBox"));
+	FindingSurvivorBox->SetupAttachment(GetCapsuleComponent());
+	FindingSurvivorBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	FindingSurvivorBox->SetCollisionObjectType(ECC_WorldDynamic);
+	FindingSurvivorBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+	FindingSurvivorBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	FindingSurvivorBox->SetRelativeLocation(FVector(0.0f, 0.0f, -60.0f));
 }
 
+// Overlap function
 void ADBDKiller::BeginOverlapCharacterChange()
 {
 	if (PC)
@@ -87,6 +99,24 @@ void ADBDKiller::BeginPlay()
 	{
 		RedStain->SetVisibility(true);
 	}
+
+	if (FindingSurvivorBox)
+	{
+		FindingSurvivorBox->OnComponentBeginOverlap.AddDynamic(this, &ADBDKiller::OnSurvivorOverlapBegin);
+		FindingSurvivorBox->OnComponentEndOverlap.AddDynamic(this, &ADBDKiller::OnSurvivorOverlapEnd);
+	}
+}
+
+void ADBDKiller::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ADBDKiller, CurrentPallet);
+	DOREPLIFETIME(ADBDKiller, CurrentGenerator);
+	DOREPLIFETIME(ADBDKiller, CurrentTargetSurvivor);
+	DOREPLIFETIME(ADBDKiller, CurrentHook);
+	DOREPLIFETIME(ADBDKiller, bCanPickUp);
+	DOREPLIFETIME(ADBDKiller, bIsCarrying);
 }
 
 // Called every frame
@@ -94,7 +124,8 @@ void ADBDKiller::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	FindBreakable();
+	FindAction();
+	HandleTargetSurvivor();
 }
 
 void ADBDKiller::NotifyControllerChanged()
@@ -133,7 +164,7 @@ void ADBDKiller::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 
 void ADBDKiller::Move(const FInputActionValue& Value)
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting || bIsHooking)
 	{
 		return;
 	}
@@ -152,7 +183,7 @@ void ADBDKiller::Move(const FInputActionValue& Value)
 
 void ADBDKiller::Look(const FInputActionValue& Value)
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting || bIsHooking)
 	{
 		return;
 	}
@@ -165,17 +196,19 @@ void ADBDKiller::Look(const FInputActionValue& Value)
 
 void ADBDKiller::Interact(const FInputActionValue& Value)
 {
-	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator || !bCanAttack || bIsAttacking || bIsVaulting)
+	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator || !bCanAttack || bIsAttacking || bIsVaulting || bIsHooking)
 	{
 		return;
 	}
 
 	Attack();
+	Server_Attack();
+	TryAttack();
 }
 
 void ADBDKiller::Action(const FInputActionValue& Value)
 {
-	if (bIsAttacking || bIsVaulting)
+	if (bIsAttacking || bIsVaulting || bIsBreakingGenerator || bIsBreakingPallet || bIsHooking)
 	{
 		return;
 	}
@@ -185,26 +218,47 @@ void ADBDKiller::Action(const FInputActionValue& Value)
 		if (PC)
 		{
 			PC->HideActionMessage();
-			PC->CharacterChange();
+			UDBDGameInstance* GI = Cast<UDBDGameInstance>(GetGameInstance());
+			if (GI)
+			{
+				PC->CharacterChange(GI->bIsKiller);
+			}
 		}
 	}
 	if (bCanBreakPallet)
 	{
 		BreakPallet();
+		Server_BreakPallet();
+		return;
 	}
 	if (bCanBreakGenerator)
 	{
 		BreakGenerator();
+		Server_BreakGenerator();
+		return;
 	}
 	if (bCanVault)
 	{
 		Vault();
+		Server_Vault();
+		return;
+	}
+	if (bCanPickUp)
+	{
+		TryPickUp();
+		return;
+	}
+	if (bCanHook)
+	{
+		StartHookSurvivor();
+		Server_StartHookSurvivor();
+		return;
 	}
 }
 
-void ADBDKiller::FindBreakable()
+void ADBDKiller::FindAction()
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator || bIsAttacking || bCanVault)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsAttacking || bIsVaulting || bIsPickingUp || bIsHooking)
 	{
 		return;
 	}
@@ -216,98 +270,182 @@ void ADBDKiller::FindBreakable()
 
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, FireStart, FireEnd, ECollisionChannel::ECC_Visibility))
 	{
-		if (PC)
+		if (HitResult.GetActor())
 		{
-			if (HitResult.GetActor())
+			// If hit hook while carrying survivor
+			if (bIsCarrying)
 			{
-				ADBDPalletActor* HitPallet = Cast<ADBDPalletActor>(HitResult.GetActor());
-				if (HitPallet)
+				ADBDHookActor* HitHook = Cast <ADBDHookActor>(HitResult.GetActor());
+				if (HitHook)
 				{
-					if (HitPallet->bIsDropped)
+					CurrentHook = HitHook;
+					if (bIsCarrying && CurrentTargetSurvivor)
 					{
-						CurrentPallet = HitPallet;
-						PC->ShowActionMessage("Press Space to break the pallet");
-						bCanBreakPallet = true;
-						return;
+						if (PC)
+						{
+							PC->ShowActionMessage("Press Space to hook");
+						}
+						SetCurrentHook(HitHook);
+						bCanHook = true;
 					}
 				}
 
-				ADBDGeneratorActor* HitGenerator = Cast<ADBDGeneratorActor>(HitResult.GetActor());
-				if (HitGenerator)
+				// While carrying, only can hook
+				return;
+			}
+
+			// If hit dropped pallet
+			ADBDPalletActor* HitPallet = Cast<ADBDPalletActor>(HitResult.GetActor());
+			if (HitPallet)
+			{
+				if (HitPallet->bIsDropped)
 				{
-					CurrentGenerator = HitGenerator;
-					PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
-					if (CurrentGenerator->CurrentRepairRate > 0.0f)
+					CurrentPallet = HitPallet;
+					if (IsLocallyControlled())
 					{
-						PC->ShowActionMessage("Press Space to break the pallet");
-						bCanBreakGenerator = true;
+						Server_SetCurrentPallet(HitPallet);
+						PC->ShowActionMessage("Press Space to break");
 					}
+					bCanBreakPallet = true;
+					return;
+				}
+			}
+
+			// If hit being repaired generator
+			ADBDGeneratorActor* HitGenerator = Cast<ADBDGeneratorActor>(HitResult.GetActor());
+			if (HitGenerator)
+			{
+				CurrentGenerator = HitGenerator;
+				if (IsLocallyControlled())
+				{
+					Server_SetCurrenetGenerator(HitGenerator);
+					PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
+				}				
+				if (CurrentGenerator->CurrentRepairRate > 0.0f)
+				{
+					if (IsLocallyControlled())
+					{
+						PC->ShowActionMessage("Press Space to break");
+					}
+					bCanBreakGenerator = true;
 					return;
 				}
 			}
 		}
 	}
 
-	if (PC)
+	// Handle UI and state
+	if (PC && IsLocallyControlled())
 	{
-		PC->HideActionMessage();
-		PC->HideInteractionProgress();
-		bCanBreakPallet = false;
-		bCanBreakGenerator = false;
+		if (!bCanPickUp && !bCanCharacterChange && !bCanHook)
+		{
+			PC->HideActionMessage();
+			PC->HideInteractionProgress();
+		}
 	}
+	bCanBreakPallet = false;
+	bCanBreakGenerator = false;
+	bCanHook = false;
 }
 
 void ADBDKiller::BreakPallet()
 {
-	if (!CurrentPallet || !bCanBreakPallet || bIsBreakingPallet)
+	if (!CurrentPallet)
 	{
 		return;
 	}
 
 	bIsBreakingPallet = true;
-	
+
 	if (PC)
 	{
 		PC->HideActionMessage();
 	}
 
-	// Move to front of current pallet
-	FVector PalletFrontLocation;
-	if (FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[0]) >
-		FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[1]))
+	if (CurrentPallet)
 	{
-		PalletFrontLocation = CurrentPallet->StartLocation[1];
-	}
-	else
-	{
-		PalletFrontLocation = CurrentPallet->StartLocation[0];
-	}
-	SetActorLocation(PalletFrontLocation);
+		// Move to front of current pallet
+		FVector PalletFrontLocation;
+		if (FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[0]) >
+			FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[1]))
+		{
+			PalletFrontLocation = CurrentPallet->StartLocation[1];
+		}
+		else
+		{
+			PalletFrontLocation = CurrentPallet->StartLocation[0];
+		}
+		PalletFrontLocation.Z = GetActorLocation().Z;
+		SetActorLocation(PalletFrontLocation, false);
 
-	FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({ 30.0f,0.0f,0.0f }));
-	FRotator PalletRotation = (PalletTriggerBoxLocation - GetActorLocation()).Rotation();
-	PalletRotation.Pitch = 0.0f;
-	PalletRotation.Roll = 0.0f;
-	SetActorRotation(PalletRotation);
+		FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({ 30.0f,0.0f,0.0f }));
+		FRotator PalletRotation = (PalletTriggerBoxLocation - GetActorLocation()).Rotation();
+		PalletRotation.Pitch = 0.0f;
+		PalletRotation.Roll = 0.0f;
+		SetActorRotation(PalletRotation);
+	}
 
 	PlayAnimMontage(BreakAnim);
 
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		BreakTimerHandle,
-		this,
-		&ADBDKiller::EndBreakPallet,
-		2.34f,
-		false
-	);
-	
+	if (IsLocallyControlled())
+	{
+		GetWorld()->GetTimerManager().SetTimer
+		(
+			BreakTimerHandle,
+			FTimerDelegate::CreateLambda([&]() {
+				EndBreakPallet();
+				if (IsLocallyControlled())
+				{
+					Server_EndbreakPallet();
+				}
+				}),
+			2.34f,
+			false
+		);
+	}
 }
 
 void ADBDKiller::EndBreakPallet()
 {
-	CurrentPallet->Destroy();
+	if (CurrentPallet)
+	{
+		CurrentPallet->Destroy();
+	}
 	bIsBreakingPallet = false;
 	bCanBreakPallet = false;
+}
+
+void ADBDKiller::Server_SetCurrentPallet_Implementation(ADBDPalletActor* TargetPallet)
+{
+	CurrentPallet = TargetPallet;
+}
+
+void ADBDKiller::Server_BreakPallet_Implementation()
+{
+	BreakPallet();
+	MultiCast_BreakPallet();
+}
+
+void ADBDKiller::Server_EndbreakPallet_Implementation()
+{
+	EndBreakPallet();
+	MultiCast_EndBreakPallet();
+}
+
+void ADBDKiller::MultiCast_BreakPallet_Implementation()
+{
+	if (!IsLocallyControlled() && !HasAuthority())
+	{
+		BreakPallet();
+	}
+}
+
+void ADBDKiller::MultiCast_EndBreakPallet_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		EndBreakPallet();
+	}
 }
 
 void ADBDKiller::BreakGenerator()
@@ -324,80 +462,175 @@ void ADBDKiller::BreakGenerator()
 		PC->HideActionMessage();
 	}
 
-	// Move to front of current generator
-	FVector RepairLocation = CurrentGenerator->RepairLocation[0];
-	double MinDistance = FVector::Distance(GetActorLocation(), RepairLocation);
-	for (int i = 1; i < 4; i++)
+	if (CurrentGenerator)
 	{
-		double NextDistance = FVector::Distance(GetActorLocation(), CurrentGenerator->RepairLocation[i]);
-		if (MinDistance > NextDistance)
+		// Move to front of current generator
+		FVector RepairLocation = CurrentGenerator->RepairLocation[0];
+		double MinDistance = FVector::Distance(GetActorLocation(), RepairLocation);
+		for (int i = 1; i < 4; i++)
 		{
-			RepairLocation = CurrentGenerator->RepairLocation[i];
-			MinDistance = NextDistance;
+			double NextDistance = FVector::Distance(GetActorLocation(), CurrentGenerator->RepairLocation[i]);
+			if (MinDistance > NextDistance)
+			{
+				RepairLocation = CurrentGenerator->RepairLocation[i];
+				MinDistance = NextDistance;
+			}
 		}
-	}
-	RepairLocation.Z = GetActorLocation().Z;
-	SetActorLocation(RepairLocation, false);
+		RepairLocation.Z = GetActorLocation().Z;
+		SetActorLocation(RepairLocation, false);
 
-	// Set rotation to generator
-	FRotator RepairRotation = (CurrentGenerator->GetActorLocation() - GetActorLocation()).Rotation();
-	RepairRotation.Pitch = 0.0f;
-	RepairRotation.Roll = 0.0f;
-	SetActorRotation(RepairRotation);
+		// Set rotation to generator
+		FRotator RepairRotation = (CurrentGenerator->GetActorLocation() - GetActorLocation()).Rotation();
+		RepairRotation.Pitch = 0.0f;
+		RepairRotation.Roll = 0.0f;
+		SetActorRotation(RepairRotation);
+	}
 
 	PlayAnimMontage(BreakAnim);
 
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		BreakTimerHandle,
-		this,
-		&ADBDKiller::EndBreakGenerator,
-		1.8f,
-		false
-	);
+	if (IsLocallyControlled())
+	{
+		GetWorld()->GetTimerManager().SetTimer
+		(
+			BreakTimerHandle,
+			FTimerDelegate::CreateLambda([&]() {
+				EndBreakGenerator();
+				if (IsLocallyControlled())
+				{
+					Server_EndBreakGenerator();
+				}
+			}),
+			1.8f,
+			false
+		);
+	}
 }
 
 void ADBDKiller::EndBreakGenerator()
 {
 	bIsBreakingGenerator = false;
 	bCanBreakGenerator = false;
-	CurrentGenerator->CurrentRepairRate = CurrentGenerator->CurrentRepairRate > 2.5f ? CurrentGenerator->CurrentRepairRate - 2.5f : 0.0f;
 	StopAnimMontage();
+
+	if (HasAuthority())
+	{
+		if (CurrentGenerator)
+		{
+			CurrentGenerator->CurrentRepairRate = CurrentGenerator->CurrentRepairRate > 2.5f ? CurrentGenerator->CurrentRepairRate - 2.5f : 0.0f;
+		}
+	}
+}
+
+void ADBDKiller::Server_SetCurrenetGenerator_Implementation(ADBDGeneratorActor* TargetGenerator)
+{
+	CurrentGenerator = TargetGenerator;
+}
+
+void ADBDKiller::Server_BreakGenerator_Implementation()
+{
+	BreakGenerator();
+	MultiCast_BreakGenerator();
+}
+
+void ADBDKiller::Server_EndBreakGenerator_Implementation()
+{
+	EndBreakGenerator();
+	MultiCast_EndBreakGenerator();
+}
+
+void ADBDKiller::MultiCast_BreakGenerator_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		BreakGenerator();
+	}
+}
+
+void ADBDKiller::MultiCast_EndBreakGenerator_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		EndBreakGenerator();
+	}
 }
 
 void ADBDKiller::Attack()
 {
-	bool bIsSuccces = false;
+	bCanAttack = false;
+	GetCharacterMovement()->MaxWalkSpeed = 100.0f;
+	bIsAttacking = true;
 
+	if (bIsCarrying)
+	{
+		PlayAnimMontage(CarryingAttackAnim);
+	}
+	else 
+	{
+		PlayAnimMontage(AttackAnim);
+	}
+}
+
+void ADBDKiller::EndAttack()
+{
+	bCanAttack = true;
+	bIsAttacking = false;
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+}
+
+void ADBDKiller::TryAttack()
+{
 	FVector FireStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
 	FVector FireEnd = (Camera->GetForwardVector() * 250) + FireStart;
+	Server_TryAttack(FireStart, FireEnd);
+}
+
+void ADBDKiller::Server_Attack_Implementation()
+{
+	Attack();
+	MultiCast_Attack();
+}
+
+void ADBDKiller::MultiCast_Attack_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		Attack();
+	}
+}
+
+void ADBDKiller::Server_TryAttack_Implementation(FVector FireStart, FVector FireEnd)
+{
+	bool bIsSuccess = false;
+
+	DrawDebugLine(GetWorld(), FireStart, FireEnd, FColor::Red);
 
 	FHitResult HitResult;
-
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, FireStart, FireEnd, ECollisionChannel::ECC_Visibility))
 	{
-		if (PC)
+		if (HitResult.GetActor())
 		{
-			if (HitResult.GetActor())
+			if (ADBDSurvivor* HitSuvivor = Cast<ADBDSurvivor>(HitResult.GetActor()))
 			{
-				if (ADBDSurvivor* HitSuvivor = Cast<ADBDSurvivor>(HitResult.GetActor()))
+				if (HitSuvivor->CurrentHealthStateEnum != EHealthState::DeepWound)
 				{
-					if (HitSuvivor->CurrentHealthStateEnum != EHealthState::DeepWound)
-					{
-						UGameplayStatics::ApplyDamage(HitResult.GetActor(), 1, PC, this, UDamageType::StaticClass());
-						bIsSuccces = true;
-					}
+					UGameplayStatics::ApplyDamage(HitResult.GetActor(), 1, GetController(), this, UDamageType::StaticClass());
+					bIsSuccess = true;
 				}
-				GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("HitResult : %s"), *HitResult.GetActor()->GetName()));
 			}
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("HitResult : %s"), *HitResult.GetActor()->GetName()));
 		}
 	}
+	else {
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Failed to Line Trace")));
+	}
 
-	bCanAttack = false;
-	GetCharacterMovement()->MaxWalkSpeed = 200.0f;
-	bIsAttacking = true;
-	PlayAnimMontage(AttackAnim);
-	float AttackDelay = bIsSuccces ? 2.7f : 1.5f;
+	Server_HandleAttackDelay(bIsSuccess);
+}
+
+void ADBDKiller::Server_HandleAttackDelay_Implementation(bool bIsSuccess)
+{
+	Multicast_HandleAttackDelay(bIsSuccess);
+	float AttackDelay = bIsSuccess ? 2.7f : 1.5f;
 
 	GetWorld()->GetTimerManager().SetTimer
 	(
@@ -409,16 +642,23 @@ void ADBDKiller::Attack()
 	);
 }
 
-void ADBDKiller::EndAttack()
+void ADBDKiller::Multicast_HandleAttackDelay_Implementation(bool bIsSuccess)
 {
-	bCanAttack = true;
-	bIsAttacking = false;
-	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+	float AttackDelay = bIsSuccess ? 2.7f : 1.5f;
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		AttackTimerHandle,
+		this,
+		&ADBDKiller::EndAttack,
+		AttackDelay,
+		false
+	);
 }
 
 void ADBDKiller::Vault()
 {
-	if (bIsVaulting || !bCanVault)
+	if (bIsVaulting)
 	{
 		return;
 	}
@@ -482,4 +722,357 @@ void ADBDKiller::EndVaultAnim()
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+}
+
+void ADBDKiller::Server_Vault_Implementation()
+{
+	Vault();
+	MultiCast_Vault();
+}
+
+void ADBDKiller::Server_EndVault_Implementation()
+{
+	EndVault();
+	MultiCast_EndVault();
+}
+
+void ADBDKiller::Server_EndVaultAnim_Implementation()
+{
+	EndVaultAnim();
+	MultiCast_EndVaultAnim();
+}
+
+void ADBDKiller::MultiCast_Vault_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		Vault();
+	}
+}
+
+void ADBDKiller::MultiCast_EndVault_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		EndVault();
+	}
+}
+
+void ADBDKiller::MultiCast_EndVaultAnim_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		EndVaultAnim();
+	}
+}
+
+void ADBDKiller::OnSurvivorOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (HasAuthority())
+	{
+		ADBDSurvivor* OverlappedSurvivor = Cast<ADBDSurvivor>(OtherActor);
+		if (OverlappedSurvivor)
+		{
+			if (OverlappedSurvivor->CurrentHealthStateEnum == EHealthState::DeepWound)
+			{
+				bCanPickUp = true;
+				CurrentTargetSurvivor = OverlappedSurvivor;
+				SetTargetSurvivor(CurrentTargetSurvivor);
+
+				if (PC)
+				{
+					PC->ShowActionMessage("Press Space to Pick Up");
+				}
+			}
+		}
+	}
+}
+
+void ADBDKiller::OnSurvivorOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (HasAuthority())
+	{
+		ADBDSurvivor* OverlappedSurvivor = Cast<ADBDSurvivor>(OtherActor);
+		if (OverlappedSurvivor)
+		{
+			if (CurrentTargetSurvivor)
+			{
+				if (OverlappedSurvivor == CurrentTargetSurvivor)
+				{
+					bCanPickUp = false;
+
+					if (PC)
+					{
+						PC->HideActionMessage();
+					}
+				}
+			}
+		}
+	}
+}
+
+void ADBDKiller::OnRep_CanPickUp()
+{
+	if (IsLocallyControlled())
+	{
+		if (PC)
+		{
+			if (bCanPickUp)
+			{
+				PC->ShowActionMessage("Press Spece to Pick Up");
+			}
+			else
+			{
+				PC->HideActionMessage();
+			}
+		}
+	}
+}
+
+void ADBDKiller::SetTargetSurvivor_Implementation(ADBDSurvivor* NewSurvivor)
+{
+	CurrentTargetSurvivor = NewSurvivor;
+}
+
+void ADBDKiller::HandleTargetSurvivor()
+{
+	if (CurrentTargetSurvivor)
+	{
+		if (CurrentTargetSurvivor->CurrentHealthStateEnum != EHealthState::DeepWound)
+		{
+			bCanPickUp = false;
+		}
+	}
+}
+
+void ADBDKiller::TryPickUp()
+{
+	StartPickUp();
+	Server_StartPickUp();
+}
+
+void ADBDKiller::StartPickUp()
+{
+	bCanPickUp = false;
+
+	if (PickUpAnim)
+	{
+		PlayAnimMontage(PickUpAnim);
+	}
+
+	if (PC)
+	{
+		PC->HideActionMessage();
+	}
+}
+
+void ADBDKiller::StopPickUp()
+{
+	bIsPickingUp = false;
+
+	if (PickUpAnim)
+	{
+		StopAnimMontage(PickUpAnim);
+	}
+}
+
+void ADBDKiller::StartCarryingSurvivor()
+{
+	bIsCarrying = true;
+
+	if (CurrentTargetSurvivor)
+	{
+		FName SocketName(TEXT("CarryingSocket"));
+		if (GetMesh()->DoesSocketExist(SocketName))
+		{
+			CurrentTargetSurvivor->BeCarried();
+
+			FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
+			CurrentTargetSurvivor->AttachToComponent(GetMesh(), AttachmentRules, SocketName);
+		}
+
+	}
+}
+
+void ADBDKiller::StopCarryingSurvivor()
+{
+	bIsCarrying = false;
+
+	if (CurrentTargetSurvivor)
+	{
+		FDetachmentTransformRules DetachmentRules(EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, true);
+		CurrentTargetSurvivor->GetRootComponent()->DetachFromComponent(DetachmentRules);
+		
+		CurrentTargetSurvivor->StopBeCarried();
+	}
+}
+
+void ADBDKiller::OnRep_IsCarrying()
+{
+	if (bIsCarrying)
+	{
+		StartCarryingSurvivor();
+	}
+	else
+	{
+		StopCarryingSurvivor();
+	}
+}
+
+void ADBDKiller::TryDropDown()
+{
+	StartPickUp();
+	Server_StartDropDown();
+}
+
+void ADBDKiller::Server_StartDropDown_Implementation()
+{
+	bIsPickingUp = false;
+
+	MultiCast_StartPickUp();
+
+	GetWorld()->GetTimerManager().SetTimer(
+		CarryingTimerHandle,
+		FTimerDelegate::CreateLambda([&]() {
+			StopCarryingSurvivor();
+			}),
+		0.97f,
+		false
+	);
+	GetWorld()->GetTimerManager().SetTimer(
+		PickUpTimerHandle,
+		FTimerDelegate::CreateLambda([&]() {
+			StopPickUp();
+			}),
+		2.25f,
+		false
+	);
+}
+
+void ADBDKiller::MultiCast_StartPickUp_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StartPickUp();
+	}
+}
+
+void ADBDKiller::Server_StartPickUp_Implementation()
+{
+	bIsPickingUp = true;
+
+	MultiCast_StartPickUp();
+
+	GetWorld()->GetTimerManager().SetTimer(
+		CarryingTimerHandle,
+		FTimerDelegate::CreateLambda([&]() {
+			StartCarryingSurvivor();
+			}),
+		0.97f,
+		false
+	);
+	GetWorld()->GetTimerManager().SetTimer(
+		PickUpTimerHandle,
+		FTimerDelegate::CreateLambda([&]() {
+			StopPickUp();
+			}),
+		2.25f,
+		false
+	);
+}
+
+void ADBDKiller::StartHookSurvivor()
+{
+	if (!CurrentHook)
+	{
+		return;
+	}
+
+	bIsHooking = true;
+	bCanHook = false;
+
+	// Get location to hook
+	FVector HookLocation;
+	FName HookSocketName = FName("FrontOfHook");
+	if (CurrentHook->HookStaticMesh->DoesSocketExist(HookSocketName))
+	{
+		HookLocation = CurrentHook->HookStaticMesh->GetSocketLocation(HookSocketName);
+	}
+	HookLocation.Z = GetActorLocation().Z;
+
+	// Get rotation to hook
+	FRotator HookRotation = (CurrentHook->GetActorLocation() - GetActorLocation()).Rotation();
+	HookRotation.Pitch = 0.0f;
+	HookRotation.Roll = 0.0f;
+
+	// Set location ans rotation
+	SetActorLocation(HookLocation);
+	SetActorRotation(HookRotation);
+
+	// Play anim
+	if (HookAnim)
+	{
+		PlayAnimMontage(HookAnim);
+	}
+
+	GetWorld()->GetTimerManager().SetTimer(
+		HookingTimerHandle,
+		FTimerDelegate::CreateLambda([&]() {
+			HookingSurvivor();
+			}),
+		0.99f,
+		false
+	);
+	GetWorld()->GetTimerManager().SetTimer(
+		HookedTImerHandle,
+		FTimerDelegate::CreateLambda([&]() {
+			StopHookSurvivor();
+			}),
+		1.93f,
+		false
+	);
+}
+
+void ADBDKiller::StopHookSurvivor()
+{
+	bIsHooking = false;
+
+	StopAnimMontage(HookAnim);
+}
+
+void ADBDKiller::HookingSurvivor()
+{
+	StopCarryingSurvivor();
+
+	// Attach to hook's socket
+	if (CurrentTargetSurvivor && CurrentHook)
+	{
+		CurrentTargetSurvivor->BeHooked();
+
+		FName SocketName(TEXT("HookingNeedle"));
+		if (CurrentHook->HookStaticMesh->DoesSocketExist(SocketName))
+		{
+			FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
+			CurrentTargetSurvivor->AttachToComponent(CurrentHook->HookStaticMesh, AttachmentRules, SocketName);
+		}
+	}
+}
+
+void ADBDKiller::SetCurrentHook_Implementation(ADBDHookActor* NewHook)
+{
+	CurrentHook = NewHook;
+}
+
+void ADBDKiller::Server_StartHookSurvivor_Implementation()
+{
+	StartHookSurvivor();
+	MultiCast_StartHookSurvivor();
+}
+
+void ADBDKiller::MultiCast_StartHookSurvivor_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StartHookSurvivor();
+	}
 }

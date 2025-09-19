@@ -26,6 +26,8 @@ public:
 	// Killer state values
 	UPROPERTY(BlueprintReadWrite)
 	float KillerSpeed;
+	UPROPERTY(BlueprintReadOnly)
+	bool bIsCarrying;
 	
 protected:
 	UPROPERTY(BlueprintReadWrite)

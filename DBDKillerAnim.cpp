@@ -24,4 +24,5 @@ void UDBDKillerAnim::NativeUpdateAnimation(float DeltaSecond)
 	}
 
 	KillerSpeed = Killer->GetVelocity().Size2D();
+	bIsCarrying = Killer->bIsCarrying;
 }

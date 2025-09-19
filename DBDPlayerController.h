@@ -38,7 +38,8 @@ public:
 	void StopSkillCheck();
 	int8 GetSkillCheckResult();
 
-	void CharacterChange();
+	UFUNCTION(Server, Reliable)
+	void CharacterChange(bool bIsKiller);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Sound")
 	USoundBase* AlertSound;

@@ -12,11 +12,14 @@
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Animation/AnimMontage.h"
+#include "Animation/AnimInstance.h"
 #include "DBDGeneratorActor.h"
 #include "DBDWindowActor.h"
 #include "DBDPlayerController.h" 
 #include "DBDBloodDecalActor.h"
 #include "DBDPalletActor.h"
+#include "DBDHookActor.h"
 #include "DBDSurvivor.generated.h"
 
 UENUM(BlueprintType)
@@ -24,7 +27,9 @@ enum class EHealthState : uint8
 {
 	Healthy		UMETA(DisplayName = "Healthy"),
 	Injured		UMETA(DisplayName = "Injured"),
-	DeepWound	UMETA(DisplayName = "DeepWound")
+	DeepWound	UMETA(DisplayName = "DeepWound"),
+	Carried		UMETA(DisplayName = "Carried"),
+	Hooked		UMETA(DisplayName = "Hooked")
 };
 
 UCLASS()
@@ -58,6 +63,29 @@ public:
 	bool bIsHealing = false;
 	UPROPERTY(Replicated)
 	bool bIsHealed = false;
+	bool bIsUnHooking = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* VaultSlowAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* VaultFastAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* BeingUnhookedAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* UnhookingAnim;
+
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "HealthState")
+	EHealthState CurrentHealthStateEnum = EHealthState::Healthy;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Blood")
+	TSubclassOf<ADBDBloodDecalActor> BloodDecalClass;
+
+	UFUNCTION()
+	void OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);
+
+	// For healing 
+	UPROPERTY(Replicated)
+	float CurrentHealedRate = 0.0f;
 
 	// To vault window
 	void BeginOverlapWindowVault();
@@ -75,21 +103,17 @@ public:
 	void BeginOverlapCharacterChange();
 	void EndOverlapCharacterChange();
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
-	UAnimMontage* VaultAnim;
+	// To be picked up and carried by killer
+	void BeCarried();
+	void StopBeCarried();
 
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "HealthState")
-	EHealthState CurrentHealthStateEnum = EHealthState::Healthy;
+	// To be hooked by killer
+	void BeHooked();
+	void StopBeHooked();
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Blood")
-	TSubclassOf<ADBDBloodDecalActor> BloodDecalClass;
-
-	UFUNCTION()
-	void OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);
-
-	// For healing 
-	UPROPERTY(Replicated)
-	float CurrentHealedRate = 0.0f;
+	// To be unhooked by survivor;
+	void StartBeingUnhooked();
+	void StopBeingUnhooked();
 
 protected:
 	// Called when the game starts or when spawned
@@ -101,7 +125,7 @@ protected:
 	ADBDPlayerController* PC;
 
 	// Components
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
 	USpringArmComponent* SpringArm;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	UCameraComponent* Camera;
@@ -137,6 +161,10 @@ private:
 	void Interact(const FInputActionValue& Value);
 	void Action(const FInputActionValue& Value);
 
+	// Only Server
+	UFUNCTION(Server, Reliable)
+	void Server_Teleport(FVector NewLocation);
+
 	// Sprint
 	void StartSprinting();
 	void StopSprinting();
@@ -149,6 +177,8 @@ private:
     // Vault
 	void StartVault();
 	void StopVault();
+	UFUNCTION()
+	void VaultAnimNotifyBeginHandler(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload);
 	int8 VaultType = 0;
 	UFUNCTION(Server, Reliable)
 	void Server_StartVault();
@@ -193,7 +223,6 @@ private:
 	void TryTriggerSkillCheck();
 
 	// Heal survivor
-	ADBDSurvivor* CurrentTargetSurvivor;
 	void StartHealSurvivor();
 	void StopHealSurvivor();
 	void HandleHealSurvivor(float DeltaTime);
@@ -217,17 +246,12 @@ private:
 	{
 		Idle,
 		Repair,
-		Heal
+		Heal,
+		UnHook
 	};
 	ESurvivorInteraction CurrentInteractionState = ESurvivorInteraction::Idle;
 	
-	// Values
-	ADBDWindowActor* CurrentWindow;
-	ADBDPalletActor* CurrentPallet;
-	FTimerHandle SkillCheckTimer;
-	FTimerHandle SkillCheckTriggerTimer;
-	FTimerHandle VaultTimer;
-
+	// Bleeding
 	void HandleBleeding(float DeltaTime);
 	float BleedingTimer = 0.0f;
 
@@ -247,4 +271,25 @@ private:
 	UFUNCTION(Server, Reliable)
 	void Server_TakeDamage();
 	void HandleHealthState();
+
+	// Unhooking survivor
+	void StartUnhook();
+	void StopUnhook();
+	UFUNCTION(Server, Reliable)
+	void Server_StartUnhook();
+	UFUNCTION(Server, Reliable)
+	void Server_StopUnhook();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StartUnhook();
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCast_StopUnhook();
+
+
+	// Values
+	ADBDWindowActor* CurrentWindow;
+	ADBDPalletActor* CurrentPallet;
+	ADBDSurvivor* CurrentTargetSurvivor;
+	FTimerHandle SkillCheckTimer;
+	FTimerHandle SkillCheckTriggerTimer;
+	FTimerHandle VaultTimer;
 };

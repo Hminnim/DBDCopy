@@ -30,32 +30,25 @@ void ADBDGameModeBase::PostLogin(APlayerController* NewPlayer)
 	}
 }
 
-void ADBDGameModeBase::ChangeCharacter(APlayerController* PlayerController)
+void ADBDGameModeBase::ChangeCharacter(APlayerController* PlayerController, bool bIsKiller)
 {
-	UDBDGameInstance* GI = Cast<UDBDGameInstance>(GetGameInstance());
-	if (GI)
+	// Choose player another character class from GameInstance
+	TSubclassOf<APawn> NewClass = bIsKiller
+		? SurvivorCharacterClass
+		: KillerCharacterClass;
+
+	// Destroy old character
+	if (APawn* OldCharacter = PlayerController->GetPawn())
 	{
-		// Choose player another character class from GameInstance
-		TSubclassOf<APawn> NewClass = GI->bIsKiller
-			? SurvivorCharacterClass
-			: KillerCharacterClass;
-
-		// Destroy old character
-		if (APawn* OldCharacter = PlayerController->GetPawn())
-		{
-			OldCharacter->Destroy();
-		}
-
-		// Spawn new character
-		FTransform SpawnTransform = FindPlayerStart(PlayerController)->GetActorTransform();
-
-		APawn* NewPawn = GetWorld()->SpawnActor<APawn>(NewClass, SpawnTransform);
-		if (NewPawn)
-		{
-			PlayerController->Possess(NewPawn);
-		}
-
-		GI->bIsKiller = !GI->bIsKiller;
+		OldCharacter->Destroy();
 	}
 
+	// Spawn new character
+	FTransform SpawnTransform = FindPlayerStart(PlayerController)->GetActorTransform();
+
+	APawn* NewPawn = GetWorld()->SpawnActor<APawn>(NewClass, SpawnTransform);
+	if (NewPawn)
+	{
+		PlayerController->Possess(NewPawn);
+	}
 }

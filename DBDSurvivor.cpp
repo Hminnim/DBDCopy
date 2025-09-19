@@ -22,7 +22,7 @@ ADBDSurvivor::ADBDSurvivor()
 
 	// SpringArm config
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>("SpringArm");
-	SpringArm->SetupAttachment(RootComponent);
+	SpringArm->SetupAttachment(GetMesh());
 	SpringArm->bUsePawnControlRotation = true;
 	SpringArm->SetRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
 	SpringArm->TargetArmLength = 200.0f;
@@ -127,6 +127,75 @@ void ADBDSurvivor::EndOverlapCharacterChange()
 	bCanCharacterChange = false;
 }
 
+void ADBDSurvivor::BeCarried()
+{
+	CurrentHealthStateEnum = EHealthState::Carried;
+
+	SetActorEnableCollision(false);
+
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->SetMovementMode(MOVE_None);
+		GetCharacterMovement()->Deactivate();
+	}	
+}
+
+void ADBDSurvivor::StopBeCarried()
+{
+	CurrentHealthStateEnum = EHealthState::Injured;
+	
+	SetActorEnableCollision(true);
+
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->Activate();
+		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+	}
+
+}
+
+void ADBDSurvivor::BeHooked()
+{
+	CurrentHealthStateEnum = EHealthState::Hooked;
+
+	SetActorEnableCollision(true);
+
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->SetMovementMode(MOVE_None);
+		GetCharacterMovement()->Deactivate();
+	}
+}
+
+void ADBDSurvivor::StopBeHooked()
+{
+	CurrentHealthStateEnum = EHealthState::Injured;
+
+	SetActorEnableCollision(true);
+
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->Activate();
+		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+	}
+}
+
+void ADBDSurvivor::StartBeingUnhooked()
+{
+	if (BeingUnhookedAnim)
+	{
+		PlayAnimMontage(BeingUnhookedAnim);
+	}
+}
+
+void ADBDSurvivor::StopBeingUnhooked()
+{
+	if (BeingUnhookedAnim)
+	{
+		StopAnimMontage(BeingUnhookedAnim);
+	}
+}
+
 void ADBDSurvivor::OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
 {
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("OnTakeDamge")));
@@ -145,6 +214,12 @@ void ADBDSurvivor::BeginPlay()
 
 	// function bind
 	OnTakeAnyDamage.AddDynamic(this, &ADBDSurvivor::OnTakeDamage);
+	
+	UAnimInstance* AnimInstace = GetMesh()->GetAnimInstance();
+	if (AnimInstace)
+	{
+		AnimInstace->OnPlayMontageNotifyBegin.AddDynamic(this, &ADBDSurvivor::VaultAnimNotifyBeginHandler);
+	}
 }
 
 void ADBDSurvivor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -246,7 +321,7 @@ void ADBDSurvivor::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void ADBDSurvivor::Move(const FInputActionValue& Value)
 {
-	if (bIsInteracting || bIsActing || bIsDropping || bIsHealed)
+	if (bIsInteracting || bIsActing || bIsDropping || bIsHealed || bIsVaulting)
 	{
 		return;
 	}
@@ -318,11 +393,13 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 		{
 			StartRepairGenerator();
 			Server_StartRepairGenerator();
+			return;
 		}
 		else
 		{
 			StopRepairGenerator();
 			Server_StopRepairGenerator();
+			return;
 		}
 	}
 
@@ -332,11 +409,29 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 		{
 			StartHealSurvivor();
 			Server_StartHealSurvivor();
+			return;
 		}
 		else
 		{
 			StopHealSurvivor();
 			Server_StopHealSurvivor();
+			return;
+		}
+	}
+
+	if (CurrentInteractionState == ESurvivorInteraction::UnHook)
+	{
+		if (Value.Get<bool>())
+		{
+			StartUnhook();
+			Server_StartUnhook();
+			return;
+		}
+		else
+		{
+			StopUnhook();
+			Server_StopUnhook();
+			return;
 		}
 	}
 }
@@ -383,9 +478,18 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 		if (IsLocallyControlled())
 		{
 			PC->HideActionMessage();
-			PC->CharacterChange();
+			UDBDGameInstance* GI = Cast<UDBDGameInstance>(GetGameInstance());
+			if (GI)
+			{
+				PC->CharacterChange(GI->bIsKiller);
+			}
 		}
 	}
+}
+
+void ADBDSurvivor::Server_Teleport_Implementation(FVector NewLocation)
+{
+	SetActorLocation(NewLocation);
 }
 
 void ADBDSurvivor::StartSprinting()
@@ -442,6 +546,7 @@ void ADBDSurvivor::StartVault()
 
 	bIsVaulting = true;
 
+	// Window Vault
 	if (VaultType == 0 && CurrentWindow)
 	{
 		FVector VaultStartLocation = CurrentWindow->StartLocation[0];
@@ -462,6 +567,7 @@ void ADBDSurvivor::StartVault()
 		VaultRotation.Roll = 0.0f;
 		SetActorRotation(VaultRotation);
 	}
+	// Pallet Vault
 	if (VaultType == 1 && CurrentPallet)
 	{
 		FVector VaultStartLocation = CurrentPallet->StartLocation[0];
@@ -484,20 +590,30 @@ void ADBDSurvivor::StartVault()
 		SetActorRotation(VaultRotation);
 	}
 
-	// Set vault speed
-	float PlayRate = bIsSprinting && !bIsCrouched ? 3.16f : 1.0f;
-	float PlayTime = bIsSprinting && !bIsCrouched ? 0.5f : 1.58f;
-
 	// Change collision
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetCharacterMovement()->SetMovementMode(MOVE_Flying);
 
 	// Play animation
-	GetMesh()->GetAnimInstance()->Montage_Play(VaultAnim, PlayRate);
+	if (VaultType == 0 && CurrentWindow)
+	{
+		if (bIsSprinting)
+		{
+			GetMesh()->GetAnimInstance()->Montage_Play(VaultFastAnim);
+		}
+		else
+		{
+			GetMesh()->GetAnimInstance()->Montage_Play(VaultSlowAnim);
+		}
+	}
+	if (VaultType == 1 && CurrentPallet)
+	{
+
+	}
 
 	// Stop vault
-	GetWorld()->GetTimerManager().SetTimer
+	/*GetWorld()->GetTimerManager().SetTimer
 	(
 		VaultTimer,
 		FTimerDelegate::CreateLambda([&]() {
@@ -509,18 +625,34 @@ void ADBDSurvivor::StartVault()
 			}),
 		PlayTime,
 		false
-	);
+	);*/
 
 }
 
 void ADBDSurvivor::StopVault()
 {
-	bIsVaulting = false;
-
 	// Change collision
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+
+	bIsVaulting = false;
+}
+
+void ADBDSurvivor::VaultAnimNotifyBeginHandler(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
+{
+	if (NotifyName == "EndVault")
+	{
+		StopVault();
+	}
+	if (NotifyName == "EndUnhook")
+	{
+		StopUnhook();
+	}
+	if (NotifyName == "EndBeUnhooked")
+	{
+		StopBeHooked();
+	}
 }
 
 void ADBDSurvivor::MultiCast_StartVault_Implementation()
@@ -595,15 +727,31 @@ void ADBDSurvivor::FindInteratable()
 					return;
 				}
 
-				CurrentInteractionState = ESurvivorInteraction::Heal;
-				CurrentTargetSurvivor = HitSurvivor;
-				Server_SetTargetSurvivor(HitSurvivor);
-				if (IsLocallyControlled())
+				if (HitSurvivor->CurrentHealthStateEnum == EHealthState::Injured || HitSurvivor->CurrentHealthStateEnum == EHealthState::DeepWound)
 				{
-					PC->ShowIneractionMessage("Press M1 to Heal Survivor");
-					PC->ShowInteractionProgress(CurrentTargetSurvivor->CurrentHealedRate);
+					CurrentInteractionState = ESurvivorInteraction::Heal;
+					CurrentTargetSurvivor = HitSurvivor;
+					Server_SetTargetSurvivor(HitSurvivor);
+					if (IsLocallyControlled())
+					{
+						PC->ShowIneractionMessage("Press M1 to Heal Survivor");
+						PC->ShowInteractionProgress(CurrentTargetSurvivor->CurrentHealedRate);
+					}
+					return;
 				}
-				return;
+				
+				if (HitSurvivor->CurrentHealthStateEnum == EHealthState::Hooked)
+				{
+					CurrentInteractionState = ESurvivorInteraction::UnHook;
+					CurrentTargetSurvivor = HitSurvivor;
+
+					if (IsLocallyControlled())
+					{
+						PC->ShowIneractionMessage("Press M1 to Unhook Survivor");
+					}
+					return;
+				}
+				
 			}
 		}
 	}
@@ -1127,5 +1275,83 @@ void ADBDSurvivor::Server_TakeDamage_Implementation()
 	else if (CurrentHealthStateEnum == EHealthState::Injured)
 	{
 		CurrentHealthStateEnum = EHealthState::DeepWound;
+	}
+}
+
+void ADBDSurvivor::StartUnhook()
+{
+	if (CurrentInteractionState != ESurvivorInteraction::UnHook)
+	{
+		return;
+	}
+
+	bIsUnHooking = true;
+
+	FVector UnhookLocation = GetActorLocation();
+	FRotator UnhookRotation = GetActorRotation();
+	FName SocketName = "unhookSocket";
+	if (CurrentTargetSurvivor)
+	{
+		if (CurrentTargetSurvivor->GetMesh()->DoesSocketExist(SocketName))
+		{
+			UnhookLocation = CurrentTargetSurvivor->GetMesh()->GetSocketLocation(SocketName);
+			UnhookLocation.Z = GetActorLocation().Z;
+		}
+
+		UnhookRotation = (CurrentTargetSurvivor->GetActorLocation() - GetActorLocation()).Rotation();
+	}
+
+	Server_Teleport(UnhookLocation);
+	SetActorRotation(UnhookRotation);
+	
+	if (CurrentTargetSurvivor)
+	{
+		CurrentTargetSurvivor->StartBeingUnhooked();
+	}
+	if (UnhookingAnim)
+	{
+		PlayAnimMontage(UnhookingAnim);
+	}
+}
+
+void ADBDSurvivor::StopUnhook()
+{
+	bIsUnHooking = false;
+
+	if (CurrentTargetSurvivor)
+	{
+		CurrentTargetSurvivor->StopBeingUnhooked();
+	}
+	if (UnhookingAnim)
+	{
+		StopAnimMontage(UnhookingAnim);
+	}
+}
+
+void ADBDSurvivor::Server_StartUnhook_Implementation()
+{
+	StartUnhook();
+	MultiCast_StartUnhook();
+}
+
+void ADBDSurvivor::Server_StopUnhook_Implementation()
+{
+	StopUnhook();
+	MultiCast_StopUnhook();
+}
+
+void ADBDSurvivor::MultiCast_StartUnhook_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StartUnhook();
+	}
+}
+
+void ADBDSurvivor::MultiCast_StopUnhook_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StopUnhook();
 	}
 }

@@ -143,11 +143,11 @@ int8 ADBDPlayerController::GetSkillCheckResult()
 	}
 }
 
-void ADBDPlayerController::CharacterChange()
+void ADBDPlayerController::CharacterChange_Implementation(bool bIsKiller)
 {
 	ADBDGameModeBase* GM = Cast<ADBDGameModeBase>(GetWorld()->GetAuthGameMode());
 	if (GM)
 	{
-		GM->ChangeCharacter(this);
+		GM->ChangeCharacter(this, bIsKiller);
 	}
 }
