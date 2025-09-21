@@ -122,6 +122,10 @@ private:
 
 	void FindAction();
 
+	// Animation function
+	UFUNCTION()
+	void AnimNotifyBeginHandler(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload);
+
 	// Break pallet
 	void BreakPallet();
 	void EndBreakPallet();
@@ -167,20 +171,11 @@ private:
 
 	// Vault
 	void Vault();
-	void EndVault();
-	void EndVaultAnim();
+	void StopVault();
 	UFUNCTION(Server, Reliable)
 	void Server_Vault();
-	UFUNCTION(Server, Reliable)
-	void Server_EndVault();
-	UFUNCTION(Server, Reliable)
-	void Server_EndVaultAnim();
 	UFUNCTION(NetMulticast, Reliable)
 	void MultiCast_Vault();
-	UFUNCTION(NetMulticast, Reliable)
-	void MultiCast_EndVault();
-	UFUNCTION(NetMulticast, Reliable)
-	void MultiCast_EndVaultAnim();
 
 	// Pick up survivor
 	UFUNCTION()

@@ -12,6 +12,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/AudioComponent.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimInstance.h"
 #include "DBDGeneratorActor.h"
@@ -31,6 +32,17 @@ enum class EHealthState : uint8
 	Carried		UMETA(DisplayName = "Carried"),
 	Hooked		UMETA(DisplayName = "Hooked")
 };
+
+UENUM()
+enum class ESurvivorInteraction
+{
+	Idle,
+	Repair,
+	Heal,
+	UnHook
+};
+
+class ADBDKiller;
 
 UCLASS()
 class DBDCOPY_API ADBDSurvivor : public ACharacter
@@ -79,6 +91,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Blood")
 	TSubclassOf<ADBDBloodDecalActor> BloodDecalClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio")
+	UAudioComponent* HeartBeatSound;
 
 	UFUNCTION()
 	void OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);
@@ -136,6 +151,9 @@ protected:
 	float CrouchSpeed = 113.0f;
 	float CrawlSpeed = 70.0f;
 
+	ADBDKiller* KillerActorInGame;
+	void FindKillerActor();
+
 private:
 	// Input action
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (AllowPrivateAccess = "true"));
@@ -161,6 +179,10 @@ private:
 	void Interact(const FInputActionValue& Value);
 	void Action(const FInputActionValue& Value);
 
+	// Animation function
+	UFUNCTION()
+	void AnimNotifyBeginHandler(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload);
+
 	// Only Server
 	UFUNCTION(Server, Reliable)
 	void Server_Teleport(FVector NewLocation);
@@ -177,8 +199,6 @@ private:
     // Vault
 	void StartVault();
 	void StopVault();
-	UFUNCTION()
-	void VaultAnimNotifyBeginHandler(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload);
 	int8 VaultType = 0;
 	UFUNCTION(Server, Reliable)
 	void Server_StartVault();
@@ -242,13 +262,7 @@ private:
 	void MultiCast_StopHealSurvivor();
 
 	// Survivor interaction enum
-	enum class ESurvivorInteraction
-	{
-		Idle,
-		Repair,
-		Heal,
-		UnHook
-	};
+	UPROPERTY(Replicated)
 	ESurvivorInteraction CurrentInteractionState = ESurvivorInteraction::Idle;
 	
 	// Bleeding
@@ -283,7 +297,9 @@ private:
 	void MultiCast_StartUnhook();
 	UFUNCTION(NetMulticast, Reliable)
 	void MultiCast_StopUnhook();
-
+	
+	// Terror radius
+	void PlayTrerrorRadiusSound();
 
 	// Values
 	ADBDWindowActor* CurrentWindow;
@@ -292,4 +308,5 @@ private:
 	FTimerHandle SkillCheckTimer;
 	FTimerHandle SkillCheckTriggerTimer;
 	FTimerHandle VaultTimer;
+	FTimerHandle FindKillerTimer;
 };

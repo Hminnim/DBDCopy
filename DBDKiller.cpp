@@ -105,6 +105,12 @@ void ADBDKiller::BeginPlay()
 		FindingSurvivorBox->OnComponentBeginOverlap.AddDynamic(this, &ADBDKiller::OnSurvivorOverlapBegin);
 		FindingSurvivorBox->OnComponentEndOverlap.AddDynamic(this, &ADBDKiller::OnSurvivorOverlapEnd);
 	}
+
+	UAnimInstance* AnimInstace = GetMesh()->GetAnimInstance();
+	if (AnimInstace)
+	{
+		AnimInstace->OnPlayMontageNotifyBegin.AddDynamic(this, &ADBDKiller::AnimNotifyBeginHandler);
+	}
 }
 
 void ADBDKiller::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -164,7 +170,7 @@ void ADBDKiller::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 
 void ADBDKiller::Move(const FInputActionValue& Value)
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting || bIsHooking)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting || bIsHooking || bIsPickingUp)
 	{
 		return;
 	}
@@ -183,7 +189,7 @@ void ADBDKiller::Move(const FInputActionValue& Value)
 
 void ADBDKiller::Look(const FInputActionValue& Value)
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting || bIsHooking)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting || bIsHooking || bIsPickingUp)
 	{
 		return;
 	}
@@ -196,7 +202,7 @@ void ADBDKiller::Look(const FInputActionValue& Value)
 
 void ADBDKiller::Interact(const FInputActionValue& Value)
 {
-	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator || !bCanAttack || bIsAttacking || bIsVaulting || bIsHooking)
+	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator || !bCanAttack || bIsAttacking || bIsVaulting || bIsHooking || bIsPickingUp)
 	{
 		return;
 	}
@@ -208,7 +214,7 @@ void ADBDKiller::Interact(const FInputActionValue& Value)
 
 void ADBDKiller::Action(const FInputActionValue& Value)
 {
-	if (bIsAttacking || bIsVaulting || bIsBreakingGenerator || bIsBreakingPallet || bIsHooking)
+	if (bIsAttacking || bIsVaulting || bIsBreakingGenerator || bIsBreakingPallet || bIsHooking || bIsPickingUp || bIsHooking)
 	{
 		return;
 	}
@@ -258,7 +264,7 @@ void ADBDKiller::Action(const FInputActionValue& Value)
 
 void ADBDKiller::FindAction()
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator || bIsAttacking || bIsVaulting || bIsPickingUp || bIsHooking)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsAttacking || bIsVaulting || bIsPickingUp || bIsHooking || bCanVault)
 	{
 		return;
 	}
@@ -346,6 +352,14 @@ void ADBDKiller::FindAction()
 	bCanBreakPallet = false;
 	bCanBreakGenerator = false;
 	bCanHook = false;
+}
+
+void ADBDKiller::AnimNotifyBeginHandler(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
+{
+	if (NotifyName == "EndVault")
+	{
+		StopVault();
+	}
 }
 
 void ADBDKiller::BreakPallet()
@@ -658,7 +672,7 @@ void ADBDKiller::Multicast_HandleAttackDelay_Implementation(bool bIsSuccess)
 
 void ADBDKiller::Vault()
 {
-	if (bIsVaulting)
+	if (bIsVaulting || !CurrentWindow)
 	{
 		return;
 	}
@@ -675,11 +689,12 @@ void ADBDKiller::Vault()
 	}
 	VaultLocation.Z = GetActorLocation().Z;
 
-	// Move to front of current window
-	SetActorLocation(VaultLocation);
 	FRotator VaultRotation = (CurrentWindow->GetActorLocation() - GetActorLocation()).Rotation();
 	VaultRotation.Pitch = 0.0f;
 	VaultRotation.Roll = 0.0f;
+
+	// Move to front of current window
+	SetActorLocation(VaultLocation);
 	SetActorRotation(VaultRotation);
 
 	// Change collision
@@ -688,36 +703,12 @@ void ADBDKiller::Vault()
 	GetCharacterMovement()->SetMovementMode(MOVE_Flying);
 
 	PlayAnimMontage(VaultAnim);
-	FTimerHandle AnimTimerHandle;
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		AnimTimerHandle,
-		this,
-		&ADBDKiller::EndVaultAnim,
-		1.0f,
-		false
-	);
-
-
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		VaultTimerHandle,
-		this,
-		&ADBDKiller::EndVault,
-		1.7f,
-		false
-	);
 }
 
-void ADBDKiller::EndVault()
+void ADBDKiller::StopVault()
 {
 	bIsVaulting = false;
 	
-}
-
-void ADBDKiller::EndVaultAnim()
-{
-	StopAnimMontage(VaultAnim);
 	// Change collision
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -730,39 +721,11 @@ void ADBDKiller::Server_Vault_Implementation()
 	MultiCast_Vault();
 }
 
-void ADBDKiller::Server_EndVault_Implementation()
-{
-	EndVault();
-	MultiCast_EndVault();
-}
-
-void ADBDKiller::Server_EndVaultAnim_Implementation()
-{
-	EndVaultAnim();
-	MultiCast_EndVaultAnim();
-}
-
 void ADBDKiller::MultiCast_Vault_Implementation()
 {
 	if (!IsLocallyControlled())
 	{
 		Vault();
-	}
-}
-
-void ADBDKiller::MultiCast_EndVault_Implementation()
-{
-	if (!IsLocallyControlled())
-	{
-		EndVault();
-	}
-}
-
-void ADBDKiller::MultiCast_EndVaultAnim_Implementation()
-{
-	if (!IsLocallyControlled())
-	{
-		EndVaultAnim();
 	}
 }
 

@@ -2,6 +2,7 @@
 
 
 #include "DBDSurvivor.h"
+#include "DBDKiller.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/Engine.h"
 
@@ -31,6 +32,11 @@ ADBDSurvivor::ADBDSurvivor()
 	Camera = CreateDefaultSubobject<UCameraComponent>("Camera");
 	Camera->SetupAttachment(SpringArm);
 	Camera->bUsePawnControlRotation = false;
+
+	// Sound config
+	HeartBeatSound = CreateDefaultSubobject<UAudioComponent>("HeartBeat");
+	HeartBeatSound->SetupAttachment(GetMesh());
+	HeartBeatSound->bAutoActivate = false;
 }
 
 void ADBDSurvivor::BeginOverlapWindowVault()
@@ -218,8 +224,17 @@ void ADBDSurvivor::BeginPlay()
 	UAnimInstance* AnimInstace = GetMesh()->GetAnimInstance();
 	if (AnimInstace)
 	{
-		AnimInstace->OnPlayMontageNotifyBegin.AddDynamic(this, &ADBDSurvivor::VaultAnimNotifyBeginHandler);
+		AnimInstace->OnPlayMontageNotifyBegin.AddDynamic(this, &ADBDSurvivor::AnimNotifyBeginHandler);
 	}
+
+	// Set timer to find killer actor
+	GetWorld()->GetTimerManager().SetTimer(
+		FindKillerTimer,
+		this,
+		&ADBDSurvivor::FindKillerActor,
+		2.0f,
+		false
+	);
 }
 
 void ADBDSurvivor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -232,6 +247,18 @@ void ADBDSurvivor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(ADBDSurvivor, bIsHealed);
 	DOREPLIFETIME(ADBDSurvivor, CurrentHealedRate);
 	DOREPLIFETIME(ADBDSurvivor, CurrentHealthStateEnum);
+	DOREPLIFETIME(ADBDSurvivor, CurrentInteractionState);
+}
+
+void ADBDSurvivor::FindKillerActor()
+{
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ADBDKiller::StaticClass(), FoundActors);
+	if (FoundActors.Num() > 0)
+	{
+		KillerActorInGame = Cast<ADBDKiller>(FoundActors[0]);
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Find killer")));
+	}
 }
 
 // Called every frame
@@ -281,6 +308,8 @@ void ADBDSurvivor::Tick(float DeltaTime)
 	HandleBleeding(DeltaTime);
 
 	HandleHealthState();
+
+	PlayTrerrorRadiusSound();
 }
 
 void ADBDSurvivor::NotifyControllerChanged()
@@ -321,7 +350,7 @@ void ADBDSurvivor::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void ADBDSurvivor::Move(const FInputActionValue& Value)
 {
-	if (bIsInteracting || bIsActing || bIsDropping || bIsHealed || bIsVaulting)
+	if (bIsInteracting || bIsActing || bIsDropping || bIsHealed || bIsVaulting || bIsUnHooking)
 	{
 		return;
 	}
@@ -348,7 +377,7 @@ void ADBDSurvivor::Look(const FInputActionValue& Value)
 
 void ADBDSurvivor::HandleCrouch(const FInputActionValue& Value)
 {
-	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping || bIsHealed)
+	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping || bIsHealed || bIsUnHooking)
 	{
 		return;
 	}
@@ -382,7 +411,7 @@ void ADBDSurvivor::Sprint(const FInputActionValue& Value)
 
 void ADBDSurvivor::Interact(const FInputActionValue& Value)
 {
-	if (CurrentInteractionState == ESurvivorInteraction::Idle || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping || bIsHealed)
+	if (CurrentInteractionState == ESurvivorInteraction::Idle || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping || bIsHealed || bIsUnHooking)
 	{
 		return;
 	}
@@ -438,7 +467,7 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 
 void ADBDSurvivor::Action(const FInputActionValue& Value)
 {
-	if (bIsDropping || bIsVaulting || bIsHealed)
+	if (bIsDropping || bIsVaulting || bIsHealed || bIsUnHooking)
 	{
 		return;
 	}
@@ -611,22 +640,6 @@ void ADBDSurvivor::StartVault()
 	{
 
 	}
-
-	// Stop vault
-	/*GetWorld()->GetTimerManager().SetTimer
-	(
-		VaultTimer,
-		FTimerDelegate::CreateLambda([&]() {
-			StopVault();
-			if (IsLocallyControlled())
-			{
-				Server_StopVault();
-			}
-			}),
-		PlayTime,
-		false
-	);*/
-
 }
 
 void ADBDSurvivor::StopVault()
@@ -639,7 +652,7 @@ void ADBDSurvivor::StopVault()
 	bIsVaulting = false;
 }
 
-void ADBDSurvivor::VaultAnimNotifyBeginHandler(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
+void ADBDSurvivor::AnimNotifyBeginHandler(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
 {
 	if (NotifyName == "EndVault")
 	{
@@ -685,7 +698,7 @@ void ADBDSurvivor::Server_StopVault_Implementation()
 
 void ADBDSurvivor::FindInteratable()
 {
-	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsHealed)
+	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsHealed || bIsUnHooking)
 	{
 		return;
 	}
@@ -1354,4 +1367,34 @@ void ADBDSurvivor::MultiCast_StopUnhook_Implementation()
 	{
 		StopUnhook();
 	}
+}
+
+void ADBDSurvivor::PlayTrerrorRadiusSound()
+{
+	if (!KillerActorInGame || !HeartBeatSound || !IsLocallyControlled())
+	{
+		return;
+	}
+
+	float Distance = FVector::Dist(KillerActorInGame->GetActorLocation(), this->GetActorLocation());
+
+	if(	Distance > 3200.0f)
+	{
+		HeartBeatSound->Deactivate();
+		return;
+	}
+	else
+	{
+		if (!HeartBeatSound->IsPlaying())
+		{
+			HeartBeatSound->Activate(true);
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Heart Beat play")));
+		}
+
+		float FearFactor = FMath::Clamp(1.0f - (Distance / 3200.0f), 0.0f, 1.0f);
+
+		HeartBeatSound->SetVolumeMultiplier(FearFactor * 1.5f);
+		HeartBeatSound->SetPitchMultiplier(1.0f + FearFactor);
+	}
+
 }
