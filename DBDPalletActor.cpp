@@ -13,31 +13,16 @@ ADBDPalletActor::ADBDPalletActor()
 
 	bReplicates = true;
 
-	// RootScene default values
-	RootScene = CreateDefaultSubobject<USceneComponent>("Root Scene");
-	RootScene->SetupAttachment(RootComponent);
-
-	// PalletScene default values
-	PalletScene = CreateDefaultSubobject<USceneComponent>("Pallet Scene");
-	PalletScene->SetupAttachment(RootScene);
-	PalletScene->SetIsReplicated(true);
-
-	// PalletStaticMesh default values
-	PalletStaticMesh = CreateDefaultSubobject<UStaticMeshComponent>("Pallet Static Mesh");
-	PalletStaticMesh->SetupAttachment(PalletScene);
-	static ConstructorHelpers::FObjectFinder<UStaticMesh>SMesh(TEXT("'/Game/Games/Object/Pallet/Wooden_Pallet_texcdfcda_Mid.Wooden_Pallet_texcdfcda_Mid'"));
-	if (SMesh.Succeeded())
-	{
-		PalletStaticMesh->SetStaticMesh(SMesh.Object);
-	}
-	PalletStaticMesh->SetRelativeLocation(FVector({ -10.0f, 0.0f, 50.0f }));
-	PalletStaticMesh->SetRelativeRotation(FRotator({ 90.0f, 360.0f,360.0f }));
+	// PalletMesh default values
+	PalletMesh = CreateDefaultSubobject<USkeletalMeshComponent>("PalletMesh");
+	PalletMesh->SetupAttachment(RootComponent);
+	PalletMesh->SetCollisionProfileName("BlockAll");
 
 	// TriggerBox default values
 	TriggerBox = CreateDefaultSubobject<UBoxComponent>(TEXT("TriggerBox"));
-	TriggerBox->SetupAttachment(RootScene);
-	TriggerBox->SetRelativeLocation(FVector({ 30.0f, 0.0f, 30.0f }));
-	TriggerBox->SetRelativeScale3D(FVector({ 1.0f,1.75f,0.6f }));
+	TriggerBox->SetupAttachment(RootComponent);
+	TriggerBox->SetRelativeLocation(FVector({ 0.0f, 80.0f, 30.0f }));
+	TriggerBox->SetRelativeScale3D(FVector({ 2.75f,1.75f,0.6f }));
 	TriggerBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	TriggerBox->SetCollisionObjectType(ECC_WorldDynamic);
 	TriggerBox->SetCollisionResponseToAllChannels(ECR_Ignore);
@@ -55,12 +40,17 @@ void ADBDPalletActor::BeginPlay()
 		TriggerBox->OnComponentEndOverlap.AddDynamic(this, &ADBDPalletActor::OnOverlapEnd);
 
 		// Set StartLocation from TriggerBox's relative location
-		FVector OffsetLocation[2] = { FVector(-30.0f, -20.0f, 0.0f), FVector(-30.0f, 20.0f, 0.0f) };
+		FVector OffsetLocation[2] = { FVector(30.0f, 0.0f, 0.0f), FVector(-30.0f, 0.0f, 0.0f) };
 		for (int i = 0; i < 2; i++)
 		{
-			FVector TargetLocation = TriggerBox->GetRelativeLocation() + OffsetLocation[i];
+			FVector TargetLocation = OffsetLocation[i];
 			StartLocation[i] = TriggerBox->GetComponentTransform().TransformPosition(TargetLocation);
 		}
+	}
+
+	if (PalletMesh)
+	{
+		PalletMesh->GetAnimInstance()->OnPlayMontageNotifyBegin.AddDynamic(this, &ADBDPalletActor::AnimNotifyBeginHandler);
 	}
 }
 
@@ -68,7 +58,6 @@ void ADBDPalletActor::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	DropPallet(DeltaTime);
 }
 
 void ADBDPalletActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -76,31 +65,15 @@ void ADBDPalletActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutL
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ADBDPalletActor, bIsDropped);
-	DOREPLIFETIME(ADBDPalletActor, NewPalletRotation);
 }
 
 void ADBDPalletActor::StartDrop()
 {
 	bIsDropping = true;
-}
-
-void ADBDPalletActor::DropPallet(float DeltaTime)
-{
-	if (!bIsDropping || bIsDropped || !HasAuthority()) 
+	
+	if (DropAnim)
 	{
-		return;
-	}
-
-	if (DropElapsedTime < DropDuration)
-	{
-		DropElapsedTime += DeltaTime;
-
-		float Alpha = DropElapsedTime / DropDuration;
-		float NewPitch = FMath::Lerp(DropStartPitch, DropEndPitch, Alpha);
-
-		NewPalletRotation = PalletScene->GetRelativeRotation();
-		NewPalletRotation.Pitch = NewPitch;
-		PalletScene->SetRelativeRotation(NewPalletRotation);
+		PalletMesh->GetAnimInstance()->Montage_Play(DropAnim);
 	}
 }
 
@@ -108,6 +81,18 @@ void ADBDPalletActor::EndDrop()
 {
 	bIsDropping = false;
 	bIsDropped = true;
+}
+
+void ADBDPalletActor::StartBreak()
+{
+	if(BreakAnim)
+	{
+		PalletMesh->GetAnimInstance()->Montage_Play(BreakAnim);
+	}
+}
+
+void ADBDPalletActor::EndBreak()
+{
 }
 
 void ADBDPalletActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
@@ -155,8 +140,11 @@ void ADBDPalletActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AAc
 	}
 }
 
-void ADBDPalletActor::OnRep_ChangePalletRotation()
+void ADBDPalletActor::AnimNotifyBeginHandler(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
 {
-	PalletScene->SetRelativeRotation(NewPalletRotation);
+	if (NotifyName == "EndDrop")
+	{
+		EndDrop();
+	}
 }
 

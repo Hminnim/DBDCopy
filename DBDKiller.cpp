@@ -62,29 +62,6 @@ void ADBDKiller::EndOverlapCharacterChange()
 	bCanCharacterChange = false;
 }
 
-void ADBDKiller::BeginOverlapVault()
-{
-	bCanVault = true;
-	if (PC)
-	{
-		PC->ShowActionMessage("Press Space to Vault");
-	}
-}
-
-void ADBDKiller::EndOverlapVault()
-{
-	bCanVault = false;
-	if (PC)
-	{
-		PC->HideActionMessage();
-	}
-}
-
-void ADBDKiller::SetCurrentWindow(ADBDWindowActor* WindowActor)
-{
-	CurrentWindow = WindowActor;
-}
-
 // Called when the game starts or when spawned
 void ADBDKiller::BeginPlay()
 {
@@ -120,6 +97,7 @@ void ADBDKiller::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeti
 	DOREPLIFETIME(ADBDKiller, CurrentPallet);
 	DOREPLIFETIME(ADBDKiller, CurrentGenerator);
 	DOREPLIFETIME(ADBDKiller, CurrentTargetSurvivor);
+	DOREPLIFETIME(ADBDKiller, CurrentWindow);
 	DOREPLIFETIME(ADBDKiller, CurrentHook);
 	DOREPLIFETIME(ADBDKiller, bCanPickUp);
 	DOREPLIFETIME(ADBDKiller, bIsCarrying);
@@ -130,7 +108,7 @@ void ADBDKiller::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	FindAction();
+	FindActable();
 	HandleTargetSurvivor();
 }
 
@@ -262,15 +240,15 @@ void ADBDKiller::Action(const FInputActionValue& Value)
 	}
 }
 
-void ADBDKiller::FindAction()
+void ADBDKiller::FindActable()
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator || bIsAttacking || bIsVaulting || bIsPickingUp || bIsHooking || bCanVault)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsAttacking || bIsVaulting || bIsPickingUp || bIsHooking)
 	{
 		return;
 	}
 
 	FVector FireStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
-	FVector FireEnd = (Camera->GetForwardVector() * 200) + FireStart;
+	FVector FireEnd = (Camera->GetForwardVector() * 150) + FireStart;
 
 	FHitResult HitResult;
 
@@ -337,13 +315,27 @@ void ADBDKiller::FindAction()
 					return;
 				}
 			}
+
+			// If hit window
+			ADBDWindowActor* HitWindow = Cast<ADBDWindowActor>(HitResult.GetActor());
+			if (HitWindow)
+			{
+				CurrentWindow = HitWindow;
+				if (IsLocallyControlled())
+				{
+					Server_SetCurrentWindow(HitWindow);
+					PC->ShowActionMessage("Press Space to vault");
+				}
+				bCanVault = true;
+				return;
+			}
 		}
 	}
 
 	// Handle UI and state
 	if (PC && IsLocallyControlled())
 	{
-		if (!bCanPickUp && !bCanCharacterChange && !bCanHook)
+		if (!bCanPickUp && !bCanCharacterChange && !bCanHook && !bCanVault)
 		{
 			PC->HideActionMessage();
 			PC->HideInteractionProgress();
@@ -352,6 +344,7 @@ void ADBDKiller::FindAction()
 	bCanBreakPallet = false;
 	bCanBreakGenerator = false;
 	bCanHook = false;
+	bCanVault = false;
 }
 
 void ADBDKiller::AnimNotifyBeginHandler(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload)
@@ -672,31 +665,59 @@ void ADBDKiller::Multicast_HandleAttackDelay_Implementation(bool bIsSuccess)
 
 void ADBDKiller::Vault()
 {
-	if (bIsVaulting || !CurrentWindow)
+	if (bIsVaulting)
 	{
+		if (HasAuthority())
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Server bIsVaulting")));
+		}
+		else
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Client bIsVaulting")));
+		}
 		return;
 	}
 
 	bIsVaulting = true;
 
-
-	// Find front location of current window
-	FVector VaultLocation = CurrentWindow->StartLocation[0];
-	double VaultDistance = FVector::Distance(GetActorLocation(), VaultLocation);
-	if (VaultDistance > FVector::Distance(GetActorLocation(), CurrentWindow->StartLocation[1]))
+	if (CurrentWindow)
 	{
-		VaultLocation = CurrentWindow->StartLocation[1];
+		// Find front location of current window
+		FVector VaultLocation = CurrentWindow->StartLocation[0];
+		double VaultDistance = FVector::Distance(GetActorLocation(), VaultLocation);
+		if (VaultDistance > FVector::Distance(GetActorLocation(), CurrentWindow->StartLocation[1]))
+		{
+			VaultLocation = CurrentWindow->StartLocation[1];
+		}
+		VaultLocation.Z = GetActorLocation().Z;
+		SetActorLocation(VaultLocation);
+
+		FRotator VaultRotation = (CurrentWindow->GetActorLocation() - GetActorLocation()).Rotation();
+		VaultRotation.Pitch = 0.0f;
+
+		AController* KillerController = GetController();
+		if (KillerController)
+		{
+			KillerController->SetControlRotation(VaultRotation);
+		}
+		if (HasAuthority())
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Server")));
+		}
 	}
-	VaultLocation.Z = GetActorLocation().Z;
-
-	FRotator VaultRotation = (CurrentWindow->GetActorLocation() - GetActorLocation()).Rotation();
-	VaultRotation.Pitch = 0.0f;
-	VaultRotation.Roll = 0.0f;
-
-	// Move to front of current window
-	SetActorLocation(VaultLocation);
-	SetActorRotation(VaultRotation);
-
+	else
+	{
+		if (HasAuthority())
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Server !CurrentWindow")));
+		}
+		else
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Client !CurrentWindow")));
+		}
+		
+	}
+	
 	// Change collision
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -727,6 +748,11 @@ void ADBDKiller::MultiCast_Vault_Implementation()
 	{
 		Vault();
 	}
+}
+
+void ADBDKiller::Server_SetCurrentWindow_Implementation(ADBDWindowActor* NewWindow)
+{
+	CurrentWindow = NewWindow;
 }
 
 void ADBDKiller::OnSurvivorOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)

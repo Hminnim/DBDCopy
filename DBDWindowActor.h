@@ -26,7 +26,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	UStaticMeshComponent* MeshComponent;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
-	class UBoxComponent* TriggerBox;
+	UBoxComponent* TriggerBox;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
+	UBoxComponent* HitBox;
 
 private:
 	UFUNCTION()

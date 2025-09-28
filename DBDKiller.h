@@ -62,11 +62,6 @@ public:
 	void BeginOverlapCharacterChange();
 	void EndOverlapCharacterChange();
 
-	// To vault window
-	void BeginOverlapVault();
-	void EndOverlapVault();
-	void SetCurrentWindow(ADBDWindowActor* WindowActor);
-
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -120,7 +115,7 @@ private:
 	void Interact(const FInputActionValue& Value);
 	void Action(const FInputActionValue& Value);
 
-	void FindAction();
+	void FindActable();
 
 	// Animation function
 	UFUNCTION()
@@ -176,6 +171,8 @@ private:
 	void Server_Vault();
 	UFUNCTION(NetMulticast, Reliable)
 	void MultiCast_Vault();
+	UFUNCTION(Server, Reliable)
+	void Server_SetCurrentWindow(ADBDWindowActor* NewWindow);
 
 	// Pick up survivor
 	UFUNCTION()
@@ -221,6 +218,7 @@ private:
 	ADBDPalletActor* CurrentPallet;
 	UPROPERTY(Replicated)
 	ADBDGeneratorActor* CurrentGenerator;
+	UPROPERTY(Replicated)
 	ADBDWindowActor* CurrentWindow;
 	UPROPERTY(Replicated)
 	ADBDSurvivor* CurrentTargetSurvivor;

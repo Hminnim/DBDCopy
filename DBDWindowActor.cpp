@@ -15,7 +15,7 @@ ADBDWindowActor::ADBDWindowActor()
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
 	MeshComponent->SetupAttachment(RootComponent);
 
-	// Box component
+	// TriggerBox component
 	TriggerBox = CreateDefaultSubobject<UBoxComponent>(TEXT("TriggerBox"));
 	TriggerBox->SetupAttachment(MeshComponent);
 	TriggerBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
@@ -24,6 +24,14 @@ ADBDWindowActor::ADBDWindowActor()
 	TriggerBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &ADBDWindowActor::OnOverlapBegin);
 	TriggerBox->OnComponentEndOverlap.AddDynamic(this, &ADBDWindowActor::OnOverlapEnd);
+
+	// HitBox component
+	HitBox = CreateDefaultSubobject<UBoxComponent>(TEXT("HitBox"));
+	HitBox->SetupAttachment(MeshComponent);
+	HitBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	HitBox->SetCollisionObjectType(ECC_WorldDynamic);
+	HitBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+	HitBox->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 }
 
 // Called when the game starts or when spawned
@@ -53,14 +61,6 @@ void ADBDWindowActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor
 		OverlappedSurvivor->BeginOverlapWindowVault();
 		OverlappedSurvivor->SetCurrentWindow(this);
 	}
-
-	ADBDKiller* OverlappedKiller = Cast<ADBDKiller>(OtherActor);
-	if (OverlappedKiller)
-	{
-		OverlappedKiller->BeginOverlapVault();
-		OverlappedKiller->SetCurrentWindow(this);
-	}
-	
 }
 
 void ADBDWindowActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
@@ -70,11 +70,4 @@ void ADBDWindowActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AAc
 	{
 		OverlappedSurvivor->EndOverlapWindowVault();
 	}
-
-	ADBDKiller* OverlappedKiller = Cast<ADBDKiller>(OtherActor);
-	if (OverlappedKiller)
-	{
-		OverlappedKiller->EndOverlapVault();
-	}
-	
 }

@@ -85,6 +85,10 @@ public:
 	UAnimMontage* BeingUnhookedAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* UnhookingAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* LeftPalletDropAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* RightPalletDropAnim;
 
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "HealthState")
 	EHealthState CurrentHealthStateEnum = EHealthState::Healthy;
@@ -211,8 +215,9 @@ private:
 	//UFUNCTION(Client, Reliable)
 	//void CancelVault();
 
-	// Survivor intreact function
+	// Survivor find function
 	void FindInteratable();
+	void FindActable();
 
 	// Repair generator
 	void StartRepairGenerator();

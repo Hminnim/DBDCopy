@@ -257,7 +257,6 @@ void ADBDSurvivor::FindKillerActor()
 	if (FoundActors.Num() > 0)
 	{
 		KillerActorInGame = Cast<ADBDKiller>(FoundActors[0]);
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Find killer")));
 	}
 }
 
@@ -309,7 +308,7 @@ void ADBDSurvivor::Tick(float DeltaTime)
 
 	HandleHealthState();
 
-	PlayTrerrorRadiusSound();
+	/*PlayTrerrorRadiusSound();*/
 }
 
 void ADBDSurvivor::NotifyControllerChanged()
@@ -666,6 +665,10 @@ void ADBDSurvivor::AnimNotifyBeginHandler(FName NotifyName, const FBranchingPoin
 	{
 		StopBeHooked();
 	}
+	if (NotifyName == "EndDrop")
+	{
+		StopDrop();
+	}
 }
 
 void ADBDSurvivor::MultiCast_StartVault_Implementation()
@@ -777,6 +780,14 @@ void ADBDSurvivor::FindInteratable()
 		PC->HideInteractionProgress();
 	}
 
+}
+
+void ADBDSurvivor::FindActable()
+{
+	if (bIsInteracting || bIsActing || CurrentHealthStateEnum == EHealthState::DeepWound || bIsHealed || bIsUnHooking)
+	{
+		return;
+	}
 }
 
 void ADBDSurvivor::StartRepairGenerator()
@@ -1093,11 +1104,13 @@ void ADBDSurvivor::HandleHealed()
 		{
 			CurrentHealthStateEnum = EHealthState::Healthy;
 			CurrentHealedRate = 0.0f;
+			UpdateMovementSpeed();
 		}
 		if (CurrentHealthStateEnum == EHealthState::DeepWound)
 		{
 			CurrentHealthStateEnum = EHealthState::Injured;
 			CurrentHealedRate = 0.0f;
+			UpdateMovementSpeed();
 		}
 	}
 }
@@ -1181,12 +1194,19 @@ void ADBDSurvivor::StartDrop()
 	// Find front location of current pallet
 	FVector VaultStartLocation = CurrentPallet->StartLocation[0];
 	FVector VaultEndLocation = CurrentPallet->StartLocation[1];
+	bool isLeft = false;
 
 	double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
 	if (MinDistance > FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[1]))
 	{
 		VaultStartLocation = VaultEndLocation;
 		VaultEndLocation = CurrentPallet->StartLocation[0];
+		isLeft = true;
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("pallet0")));
+	}
+	else
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("pallet1")));
 	}
 
 	VaultStartLocation.Z = GetActorLocation().Z;
@@ -1194,7 +1214,7 @@ void ADBDSurvivor::StartDrop()
 
 	// Move to front of current pallet
 	SetActorLocation(VaultStartLocation);
-	FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({ 30.0f,0.0f,0.0f }));
+	FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({ 0.0f,80.0f,0.0f }));
 	FRotator VaultRotation = (PalletTriggerBoxLocation - GetActorLocation()).Rotation();
 	VaultRotation.Pitch = 0.0f;
 	VaultRotation.Roll = 0.0f;
@@ -1203,20 +1223,20 @@ void ADBDSurvivor::StartDrop()
 	CurrentPallet->StartDrop();
 	bIsDropping = true;
 
-	FTimerHandle DropTimer;
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		DropTimer,
-		FTimerDelegate::CreateLambda([&]() {
-			StopDrop();
-			if (IsLocallyControlled())
-			{
-				Server_StopDrop();
-			}
-			}),
-		0.2f,
-		false
-	);
+	if (isLeft)
+	{
+		if (LeftPalletDropAnim)
+		{
+			PlayAnimMontage(LeftPalletDropAnim);
+		}
+	}
+	else
+	{
+		if (RightPalletDropAnim)
+		{
+			PlayAnimMontage(RightPalletDropAnim);
+		}
+	}
 }
 
 void ADBDSurvivor::StopDrop()
@@ -1224,6 +1244,14 @@ void ADBDSurvivor::StopDrop()
 	bIsDropping = false;
 	bCanDrop = false;
 	CurrentPallet->EndDrop();
+
+	if (CurrentPallet)
+	{
+		if (CurrentPallet->IsOverlappingActor(this))
+		{
+			BeginOverlapPalletVault();
+		}
+	}
 }
 
 void ADBDSurvivor::HandleHealthState()

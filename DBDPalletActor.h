@@ -28,7 +28,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	USceneComponent* PalletScene;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
-	UStaticMeshComponent* PalletStaticMesh;
+	USkeletalMeshComponent* PalletMesh;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	class UBoxComponent* TriggerBox;
 
@@ -38,10 +38,17 @@ public:
 	bool bIsDropped = false;
 	FVector StartLocation[2];
 
+	// Animations
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* DropAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* BreakAnim;
+
 	// Functions
 	void StartDrop();
-	void DropPallet(float DeltaTime);
 	void EndDrop();
+	void StartBreak();
+	void EndBreak();
 
 private:
 	// Overlap
@@ -57,14 +64,8 @@ private:
 		int32 OtherBodyIndex
 	);
 
+	// Animation function
 	UFUNCTION()
-	void OnRep_ChangePalletRotation();
+	void AnimNotifyBeginHandler(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointPayload);
 
-	// Drop pallet values
-	float DropElapsedTime = 0.0f;
-	float DropDuration = 0.2f;
-	float DropStartPitch = 0.0f;
-	float DropEndPitch = -70.0f;
-	UPROPERTY(ReplicatedUsing = OnRep_ChangePalletRotation)
-	FRotator NewPalletRotation;
 };

@@ -48,5 +48,6 @@ void ADBDHookActor::BeginPlay()
 {
 	Super::BeginPlay();
 	
+
 }
 
