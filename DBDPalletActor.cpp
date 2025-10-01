@@ -3,6 +3,7 @@
 
 #include "DBDPalletActor.h"
 #include "DBDSurvivor.h"
+#include "DBDKiller.h"
 #include "Net/UnrealNetwork.h"
 
 // Sets default values
@@ -75,6 +76,20 @@ void ADBDPalletActor::StartDrop()
 	{
 		PalletMesh->GetAnimInstance()->Montage_Play(DropAnim);
 	}
+
+	// Find overlapped killer and make be stunned
+	TArray<AActor*> OverlappedActors;
+	this->GetOverlappingActors(OverlappedActors, ADBDKiller::StaticClass());
+
+	if (OverlappedActors.Num() > 0)
+	{
+		for (AActor* OverlappedActor : OverlappedActors)
+		{
+			ADBDKiller* OverlappedKiller = Cast<ADBDKiller>(OverlappedActor);
+
+			OverlappedKiller->BeStunned();
+		}
+	}
 }
 
 void ADBDPalletActor::EndDrop()
@@ -97,28 +112,35 @@ void ADBDPalletActor::EndBreak()
 
 void ADBDPalletActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (bIsDropping)
+	if (!bIsDropping)
 	{
-		return;
-	}
-
-	ADBDSurvivor* OverlappedSurvivor = Cast<ADBDSurvivor>(OtherActor);
-	if (!bIsDropped)
-	{
-		if (OverlappedSurvivor)
+		ADBDSurvivor* OverlappedSurvivor = Cast<ADBDSurvivor>(OtherActor);
+		if (!bIsDropped)
 		{
-			OverlappedSurvivor->BeginOverlapPallet();
-			OverlappedSurvivor->SetCurrentPallet(this);
+			if (OverlappedSurvivor)
+			{
+				OverlappedSurvivor->BeginOverlapPallet();
+				OverlappedSurvivor->SetCurrentPallet(this);
+			}
+		}
+		else if (bIsDropped)
+		{
+			if (OverlappedSurvivor)
+			{
+				OverlappedSurvivor->BeginOverlapPalletVault();
+				OverlappedSurvivor->SetCurrentPallet(this);
+			}
 		}
 	}
-	else if (bIsDropped)
+	else
 	{
-		if (OverlappedSurvivor)
+		ADBDKiller* OverlappedKiller = Cast<ADBDKiller>(OtherActor);
+		if (OverlappedKiller)
 		{
-			OverlappedSurvivor->BeginOverlapPalletVault();
-			OverlappedSurvivor->SetCurrentPallet(this);
+			OverlappedKiller->BeStunned();
 		}
 	}
+	
 }
 
 void ADBDPalletActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)

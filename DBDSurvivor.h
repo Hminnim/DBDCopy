@@ -89,6 +89,14 @@ public:
 	UAnimMontage* LeftPalletDropAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* RightPalletDropAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* LeftPalletVaultAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* LeftPalletVaultFastAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* RightPalletVaultAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* RightPalletVaultFastAnim;
 
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "HealthState")
 	EHealthState CurrentHealthStateEnum = EHealthState::Healthy;

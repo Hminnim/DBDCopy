@@ -596,6 +596,7 @@ void ADBDSurvivor::StartVault()
 		SetActorRotation(VaultRotation);
 	}
 	// Pallet Vault
+	bool bIsLeft = false;
 	if (VaultType == 1 && CurrentPallet)
 	{
 		FVector VaultStartLocation = CurrentPallet->StartLocation[0];
@@ -605,13 +606,14 @@ void ADBDSurvivor::StartVault()
 		if (MinDistance > FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[1]))
 		{
 			VaultStartLocation = CurrentPallet->StartLocation[1];
+			bIsLeft = true;
 		}
 
 		VaultStartLocation.Z = GetActorLocation().Z;
 
 		// Move to front of current pallet
 		SetActorLocation(VaultStartLocation);
-		FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({ 30.0f,0.0f,0.0f }));
+		FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({ 0.0f,80.0f,0.0f }));
 		FRotator VaultRotation = (PalletTriggerBoxLocation - GetActorLocation()).Rotation();
 		VaultRotation.Pitch = 0.0f;
 		VaultRotation.Roll = 0.0f;
@@ -628,16 +630,55 @@ void ADBDSurvivor::StartVault()
 	{
 		if (bIsSprinting)
 		{
-			GetMesh()->GetAnimInstance()->Montage_Play(VaultFastAnim);
+			if (VaultFastAnim)
+			{
+				PlayAnimMontage(VaultFastAnim);
+			}
 		}
 		else
 		{
-			GetMesh()->GetAnimInstance()->Montage_Play(VaultSlowAnim);
+			if (VaultSlowAnim)
+			{
+				PlayAnimMontage(VaultSlowAnim);
+			}
 		}
 	}
 	if (VaultType == 1 && CurrentPallet)
 	{
-
+		if (bIsSprinting)
+		{
+			if (bIsLeft)
+			{
+				if (LeftPalletVaultFastAnim)
+				{
+					PlayAnimMontage(LeftPalletVaultFastAnim);
+				}
+			}
+			else
+			{
+				if (RightPalletVaultFastAnim)
+				{
+					PlayAnimMontage(RightPalletVaultFastAnim);
+				}
+			}
+		}
+		else 
+		{
+			if (bIsLeft)
+			{
+				if (LeftPalletVaultAnim)
+				{
+					PlayAnimMontage(LeftPalletVaultAnim);
+				}
+			}
+			else
+			{
+				if (RightPalletVaultAnim)
+				{
+					PlayAnimMontage(RightPalletVaultAnim);
+				}
+			}
+		}
 	}
 }
 

@@ -57,10 +57,14 @@ public:
 	bool bIsCarrying = false;
 	bool bCanHook = false;
 	bool bIsHooking = false;
+	bool bIsStunned = false;
 
 	// To change character
 	void BeginOverlapCharacterChange();
 	void EndOverlapCharacterChange();
+
+	// Be stunned
+	void BeStunned();
 
 protected:
 	// Called when the game starts or when spawned
@@ -92,6 +96,8 @@ protected:
 	UAnimMontage* PickUpAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* HookAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* StunPalletAnim;
 
 	// Killer speed values
 	float WalkSpeed = 460.0f;
@@ -224,6 +230,9 @@ private:
 	ADBDSurvivor* CurrentTargetSurvivor;
 	UPROPERTY(Replicated)
 	ADBDHookActor* CurrentHook;
+
+	// Be stunned
+	void EndBeStunned();
 
 	// TimerHandles
 	FTimerHandle BreakTimerHandle;

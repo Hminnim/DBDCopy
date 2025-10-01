@@ -62,6 +62,30 @@ void ADBDKiller::EndOverlapCharacterChange()
 	bCanCharacterChange = false;
 }
 
+void ADBDKiller::BeStunned()
+{
+	bIsStunned = true;
+
+	// Stop actions by being stunned
+	if (bIsAttacking)
+	{
+		EndAttack();
+	}
+	if (bIsPickingUp)
+	{
+		StopPickUp();
+	}
+	if (bIsCarrying)
+	{
+		StopCarryingSurvivor();
+	}	
+
+	if (StunPalletAnim)
+	{
+		PlayAnimMontage(StunPalletAnim);
+	}
+}
+
 // Called when the game starts or when spawned
 void ADBDKiller::BeginPlay()
 {
@@ -148,7 +172,7 @@ void ADBDKiller::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent
 
 void ADBDKiller::Move(const FInputActionValue& Value)
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting || bIsHooking || bIsPickingUp)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting || bIsHooking || bIsPickingUp || bIsStunned)
 	{
 		return;
 	}
@@ -167,7 +191,7 @@ void ADBDKiller::Move(const FInputActionValue& Value)
 
 void ADBDKiller::Look(const FInputActionValue& Value)
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting || bIsHooking || bIsPickingUp)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting || bIsHooking || bIsPickingUp || bIsStunned)
 	{
 		return;
 	}
@@ -180,7 +204,7 @@ void ADBDKiller::Look(const FInputActionValue& Value)
 
 void ADBDKiller::Interact(const FInputActionValue& Value)
 {
-	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator || !bCanAttack || bIsAttacking || bIsVaulting || bIsHooking || bIsPickingUp)
+	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator || !bCanAttack || bIsAttacking || bIsVaulting || bIsHooking || bIsPickingUp || bIsStunned)
 	{
 		return;
 	}
@@ -192,7 +216,7 @@ void ADBDKiller::Interact(const FInputActionValue& Value)
 
 void ADBDKiller::Action(const FInputActionValue& Value)
 {
-	if (bIsAttacking || bIsVaulting || bIsBreakingGenerator || bIsBreakingPallet || bIsHooking || bIsPickingUp || bIsHooking)
+	if (bIsAttacking || bIsVaulting || bIsBreakingGenerator || bIsBreakingPallet || bIsHooking || bIsPickingUp || bIsHooking || bIsStunned)
 	{
 		return;
 	}
@@ -242,7 +266,7 @@ void ADBDKiller::Action(const FInputActionValue& Value)
 
 void ADBDKiller::FindActable()
 {
-	if (bIsBreakingPallet || bIsBreakingGenerator || bIsAttacking || bIsVaulting || bIsPickingUp || bIsHooking)
+	if (bIsBreakingPallet || bIsBreakingGenerator || bIsAttacking || bIsVaulting || bIsPickingUp || bIsHooking || bIsStunned)
 	{
 		return;
 	}
@@ -352,6 +376,10 @@ void ADBDKiller::AnimNotifyBeginHandler(FName NotifyName, const FBranchingPointN
 	if (NotifyName == "EndVault")
 	{
 		StopVault();
+	}
+	if (NotifyName == "EndBeStunned")
+	{
+		EndBeStunned();
 	}
 }
 
@@ -579,6 +607,15 @@ void ADBDKiller::Attack()
 
 void ADBDKiller::EndAttack()
 {
+	if (bIsCarrying)
+	{
+		StopAnimMontage(CarryingAttackAnim);
+	}
+	else
+	{
+		StopAnimMontage(AttackAnim);
+	}
+
 	bCanAttack = true;
 	bIsAttacking = false;
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
@@ -1064,4 +1101,9 @@ void ADBDKiller::MultiCast_StartHookSurvivor_Implementation()
 	{
 		StartHookSurvivor();
 	}
+}
+
+void ADBDKiller::EndBeStunned()
+{
+	bIsStunned = false;
 }
