@@ -418,6 +418,7 @@ void ADBDKiller::BreakPallet()
 		PalletRotation.Pitch = 0.0f;
 		PalletRotation.Roll = 0.0f;
 		SetActorRotation(PalletRotation);
+		CurrentPallet->StartBreak();
 	}
 
 	PlayAnimMontage(BreakAnim);

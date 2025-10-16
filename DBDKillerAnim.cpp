@@ -2,6 +2,7 @@
 
 
 #include "DBDKillerAnim.h"
+#include "Kismet/KismetMathLibrary.h"
 
 void UDBDKillerAnim::NativeBeginPlay()
 {
@@ -25,4 +26,5 @@ void UDBDKillerAnim::NativeUpdateAnimation(float DeltaSecond)
 
 	KillerSpeed = Killer->GetVelocity().Size2D();
 	bIsCarrying = Killer->bIsCarrying;
+	KillerDirection = CalculateDirection(Killer->GetVelocity(), Killer->GetActorRotation());
 }

@@ -769,8 +769,11 @@ void ADBDSurvivor::FindInteratable()
 				Server_SetCurrentGenerator(HitGenerator);
 				if (IsLocallyControlled())
 				{
-					PC->ShowIneractionMessage("Press M1 to repair");
-					PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
+					if (HitGenerator->CurrentRepairRate < 100.0f && HitGenerator->CurrentRepairingSurvivor < 3)
+					{
+						PC->ShowIneractionMessage("Press M1 to repair");
+						PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
+					}
 				}
 				
 				return;

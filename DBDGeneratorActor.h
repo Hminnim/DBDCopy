@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/BoxComponent.h"
 #include "DBDGeneratorActor.generated.h"
 
 UCLASS()
@@ -34,6 +36,8 @@ protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
-	UStaticMeshComponent* MeshComponent;
+	USkeletalMeshComponent* GeneratorMesh;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
+	UBoxComponent* CollisionBox;
 
 };

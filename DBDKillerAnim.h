@@ -28,6 +28,8 @@ public:
 	float KillerSpeed;
 	UPROPERTY(BlueprintReadOnly)
 	bool bIsCarrying;
+	UPROPERTY(BlueprintReadOnly)
+	float KillerDirection;
 	
 protected:
 	UPROPERTY(BlueprintReadWrite)
