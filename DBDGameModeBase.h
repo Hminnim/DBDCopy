@@ -6,7 +6,6 @@
 #include "GameFramework/GameModeBase.h"
 #include "DBDGameInstance.h"
 #include "DBDGameModeBase.generated.h"
-
 /**
  * 
  */
@@ -17,16 +16,18 @@ class DBDCOPY_API ADBDGameModeBase : public AGameModeBase
 	
 public:
 	ADBDGameModeBase();
+	virtual void BeginPlay() override;
 
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 	void ChangeCharacter(APlayerController* PlayerController, bool bIsKiller);
 
-protected:
 	// Character class
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character class")
 	TSubclassOf<APawn> KillerCharacterClass;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character class")
-	TSubclassOf<APawn> SurvivorCharacterClass;
+	TSubclassOf<APawn> SurvivorCharacterClass;	
+
+private:
 
 };
  

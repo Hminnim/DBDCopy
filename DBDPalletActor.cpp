@@ -21,7 +21,7 @@ ADBDPalletActor::ADBDPalletActor()
 
 	// TriggerBox default values
 	TriggerBox = CreateDefaultSubobject<UBoxComponent>(TEXT("TriggerBox"));
-	TriggerBox->SetupAttachment(RootComponent);
+	TriggerBox->SetupAttachment(PalletMesh);
 	TriggerBox->SetRelativeLocation(FVector({ 0.0f, 80.0f, 30.0f }));
 	TriggerBox->SetRelativeScale3D(FVector({ 2.75f,1.75f,0.6f }));
 	TriggerBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);

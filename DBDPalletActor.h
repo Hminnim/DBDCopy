@@ -33,8 +33,9 @@ public:
 	class UBoxComponent* TriggerBox;
 
 	// Values
+	
 	bool bIsDropping = false;
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Values")
 	bool bIsDropped = false;
 	FVector StartLocation[2];
 

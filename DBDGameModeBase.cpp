@@ -2,9 +2,23 @@
 
 
 #include "DBDGameModeBase.h"
+#include "Kismet/GameplayStatics.h"
+#include "DBDObjectSpawnManager.h"
 
 ADBDGameModeBase::ADBDGameModeBase()
 {
+}
+
+void ADBDGameModeBase::BeginPlay()
+{
+	Super::BeginPlay();
+
+	ADBDObjectSpawnManager* ObjectSpawner = Cast<ADBDObjectSpawnManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ADBDObjectSpawnManager::StaticClass()));
+
+	if (ObjectSpawner)
+	{
+		ObjectSpawner->SpawnAllObjects();
+	}
 }
 
 void ADBDGameModeBase::PostLogin(APlayerController* NewPlayer)
