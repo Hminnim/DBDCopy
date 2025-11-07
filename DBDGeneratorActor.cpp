@@ -15,6 +15,8 @@ ADBDGeneratorActor::ADBDGeneratorActor()
 	// Skeletal component
 	GeneratorMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Generator Mesh"));
 	GeneratorMesh->SetupAttachment(RootComponent);
+	GeneratorMesh->SetRenderCustomDepth(true);
+	GeneratorMesh->SetCustomDepthStencilValue(5);
 
 	// Collision box
 	CollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("Collision Box"));

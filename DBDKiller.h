@@ -7,22 +7,22 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputLibrary.h"
-#include "GameFramework/CharacterMovementComponent.h"
-#include "Kismet/GameplayStatics.h"
-#include "Camera/CameraComponent.h"
-#include "Components/SpotLightComponent.h"
-#include "Components/BoxComponent.h"
-#include "DBDPlayerController.h"
-#include "DBDPalletActor.h"
-#include "DBDGeneratorActor.h"
-#include "DBDWindowActor.h"
-#include "DBDHookActor.h"
 #include "DBDKiller.generated.h"
 
 class UInputMappingContext;
 class UInputAction;
 class UCameraComponent;
+class USpotLightComponent;
+class UBoxComponent;
+class UPostProcessComponent;
+class UMaterialInterface;
+class UMaterialInstanceDynamic;
 class ADBDSurvivor;
+class ADBDPlayerController;
+class ADBDPalletActor;
+class ADBDGeneratorActor;
+class ADBDWindowActor;
+class ADBDHookActor;
 
 UCLASS()
 class DBDCOPY_API ADBDKiller : public ACharacter
@@ -98,6 +98,14 @@ protected:
 	UAnimMontage* HookAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* StunPalletAnim;
+
+	// Effects
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effects")
+	UPostProcessComponent* AuraPostProcessComponent;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effects")
+	UMaterialInterface* AuraMaterialAsset;
+	UPROPERTY(Transient)
+	UMaterialInstanceDynamic* AuraMaterialInstance;
 
 	// Killer speed values
 	float WalkSpeed = 460.0f;
@@ -218,6 +226,10 @@ private:
 	void Server_StartHookSurvivor();
 	UFUNCTION(NetMulticast, Reliable)
 	void MultiCast_StartHookSurvivor();
+
+	// Controll Aura
+	void EnableHookAura();
+	void DisableHookAura();
 
 	// Replicated Actors
 	UPROPERTY(Replicated)

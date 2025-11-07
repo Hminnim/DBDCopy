@@ -21,6 +21,8 @@ ADBDHookActor::ADBDHookActor()
 	HookStaticMesh->SetCollisionObjectType(ECC_WorldDynamic);
 	HookStaticMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 	HookStaticMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	HookStaticMesh->SetRenderCustomDepth(true);
+	HookStaticMesh->SetCustomDepthStencilValue(6);
 
 	// CollisionComponent default values
 	CollisionComponent = CreateDefaultSubobject<UBoxComponent>("Collision Component");

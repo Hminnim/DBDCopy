@@ -3,6 +3,19 @@
 
 #include "DBDKiller.h"
 #include "DBDSurvivor.h"
+#include "DBDPlayerController.h"
+#include "DBDPalletActor.h"
+#include "DBDGeneratorActor.h"
+#include "DBDWindowActor.h"
+#include "DBDHookActor.h"
+#include "Camera/CameraComponent.h"
+#include "Components/SpotLightComponent.h"
+#include "Components/BoxComponent.h"
+#include "Components/PostProcessComponent.h"
+#include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/Engine.h"
 
@@ -41,6 +54,11 @@ ADBDKiller::ADBDKiller()
 	FindingSurvivorBox->SetCollisionResponseToAllChannels(ECR_Ignore);
 	FindingSurvivorBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	FindingSurvivorBox->SetRelativeLocation(FVector(0.0f, 0.0f, -60.0f));
+
+	// Postprocess component
+	AuraPostProcessComponent = CreateDefaultSubobject<UPostProcessComponent>(TEXT("AuraPostProcesComponent"));
+	AuraPostProcessComponent->SetupAttachment(RootComponent);
+	AuraPostProcessComponent->bUnbound = true;
 }
 
 // Overlap function
@@ -91,6 +109,7 @@ void ADBDKiller::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	// Set RedStain's Visibility
 	if (IsLocallyControlled())
 	{
 		PC = Cast<ADBDPlayerController>(GetController());
@@ -101,16 +120,37 @@ void ADBDKiller::BeginPlay()
 		RedStain->SetVisibility(true);
 	}
 
+	// FindingSurvivorBox binding
 	if (FindingSurvivorBox)
 	{
 		FindingSurvivorBox->OnComponentBeginOverlap.AddDynamic(this, &ADBDKiller::OnSurvivorOverlapBegin);
 		FindingSurvivorBox->OnComponentEndOverlap.AddDynamic(this, &ADBDKiller::OnSurvivorOverlapEnd);
 	}
 
+	// AnimMontage Notify binding
 	UAnimInstance* AnimInstace = GetMesh()->GetAnimInstance();
 	if (AnimInstace)
 	{
 		AnimInstace->OnPlayMontageNotifyBegin.AddDynamic(this, &ADBDKiller::AnimNotifyBeginHandler);
+	}
+
+	// AuraMaterial
+	if (IsLocallyControlled())
+	{
+		if (AuraMaterialAsset)
+		{
+			AuraMaterialInstance = UMaterialInstanceDynamic::Create(AuraMaterialAsset, this);
+
+			if (AuraMaterialInstance)
+			{
+				AuraPostProcessComponent->Settings.AddBlendable(AuraMaterialInstance, 1.0f);
+				DisableHookAura();
+			}
+		}
+	}
+	else
+	{
+		AuraPostProcessComponent->bEnabled = false;
 	}
 }
 
@@ -891,6 +931,8 @@ void ADBDKiller::StartPickUp()
 	{
 		PC->HideActionMessage();
 	}
+
+	EnableHookAura();
 }
 
 void ADBDKiller::StopPickUp()
@@ -901,6 +943,8 @@ void ADBDKiller::StopPickUp()
 	{
 		StopAnimMontage(PickUpAnim);
 	}
+
+	DisableHookAura();
 }
 
 void ADBDKiller::StartCarryingSurvivor()
@@ -917,7 +961,6 @@ void ADBDKiller::StartCarryingSurvivor()
 			FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepWorld, false);
 			CurrentTargetSurvivor->AttachToComponent(GetMesh(), AttachmentRules, SocketName);
 		}
-
 	}
 }
 
@@ -932,6 +975,8 @@ void ADBDKiller::StopCarryingSurvivor()
 		
 		CurrentTargetSurvivor->StopBeCarried();
 	}
+
+	DisableHookAura();
 }
 
 void ADBDKiller::OnRep_IsCarrying()
@@ -1107,4 +1152,20 @@ void ADBDKiller::MultiCast_StartHookSurvivor_Implementation()
 void ADBDKiller::EndBeStunned()
 {
 	bIsStunned = false;
+}
+
+void ADBDKiller::EnableHookAura()
+{
+	if (AuraMaterialInstance)
+	{
+		AuraMaterialInstance->SetScalarParameterValue("ShowHookAura", 1.0f);
+	}
+}
+
+void ADBDKiller::DisableHookAura()
+{
+	if (AuraMaterialInstance)
+	{
+		AuraMaterialInstance->SetScalarParameterValue("ShowHookAura", 0.0f);
+	}
 }
