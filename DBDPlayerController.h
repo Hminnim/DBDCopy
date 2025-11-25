@@ -32,11 +32,17 @@ public:
 	void ShowActionMessage(FString Message);
 	void HideActionMessage();
 	void ShowSkillCheck();
-	UFUNCTION()
-	void StartSkillCheck();
 	void HideSkillCheck();
-	void StopSkillCheck();
-	int8 GetSkillCheckResult();
+	UFUNCTION()
+	void StartGeneratorSkillCheck();
+	void GeneratorSkillcheck();
+	void StopGeneratorSkillCheck();
+	int8 GetGeneratorSkillCheckResult();
+	void StartWiggleSkillCheck();
+	void WiggleSkillCheck();
+	void StopWiggleSkillCheck();
+	int8 GetWWiggleSkillCheckResult();
+	bool GetWiggleSkillCheckMiss();
 
 	UFUNCTION(Server, Reliable)
 	void CharacterChange(bool bIsKiller);
@@ -45,6 +51,7 @@ public:
 	USoundBase* AlertSound;
 
 	bool bIsSkillChecking = false;
+	bool bWasInZone = false;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")

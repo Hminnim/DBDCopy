@@ -85,31 +85,11 @@ void ADBDPlayerController::HideActionMessage()
 
 void ADBDPlayerController::ShowSkillCheck()
 {
-	if (AlertSound)
-	{
-		UGameplayStatics::PlaySound2D(this, AlertSound);
-	}
-
-	bIsSkillChecking = true;
-
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		SkillCheckTimerHandle,
-		this,
-		&ADBDPlayerController::StartSkillCheck,
-		0.5f,
-		false
-	);
-}
-
-void ADBDPlayerController::StartSkillCheck()
-{
 	if (SkillCheckWidget)
 	{
 		SkillCheckWidget->SetVisibility(ESlateVisibility::Visible);
-		SkillCheckWidget->SetGeneratorSkillCheck();
-		SkillCheckWidget->StartPointerMove();
 	}
+	bIsSkillChecking = true;
 }
 
 void ADBDPlayerController::HideSkillCheck()
@@ -118,28 +98,238 @@ void ADBDPlayerController::HideSkillCheck()
 	bIsSkillChecking = false;
 }
 
-void ADBDPlayerController::StopSkillCheck()
+void ADBDPlayerController::StartGeneratorSkillCheck()
+{
+	if (AlertSound)
+	{
+		UGameplayStatics::PlaySound2D(this, AlertSound);
+	}
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		SkillCheckTimerHandle,
+		this,
+		&ADBDPlayerController::GeneratorSkillcheck,
+		0.5f,
+		false
+	);
+}
+
+void ADBDPlayerController::GeneratorSkillcheck()
 {
 	if (SkillCheckWidget)
 	{
-		SkillCheckWidget->StopPointerMove();
+		SkillCheckWidget->SetVisibility(ESlateVisibility::Visible);
+		SkillCheckWidget->SetGeneratorSkillCheck();
+		SkillCheckWidget->StartGeneratorSkillCheck();
+	}
+	ShowSkillCheck();
+}
+
+void ADBDPlayerController::StopGeneratorSkillCheck()
+{
+	if (SkillCheckWidget)
+	{
+		SkillCheckWidget->StopGeneratorSkillCheck();
 		HideSkillCheck();
 	}
 
 	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTimerHandle);
 }
 
-int8 ADBDPlayerController::GetSkillCheckResult()
+int8 ADBDPlayerController::GetGeneratorSkillCheckResult()
 {
-	StopSkillCheck();
+	StopGeneratorSkillCheck();
 
 	if (SkillCheckWidget)
 	{
-		return SkillCheckWidget->GetSkillCheckResult();
+		if (SkillCheckWidget->PointerAngle < 0.0f)
+		{
+			SkillCheckWidget->PointerAngle += 360.0f;
+		}
+
+		// Great skill check
+		if (SkillCheckWidget->CircleAngle <= SkillCheckWidget->PointerAngle 
+			&& SkillCheckWidget->PointerAngle < SkillCheckWidget->CircleAngle + 10.8)
+		{
+			return 0;
+		}
+
+		// Good skill check
+		else if (SkillCheckWidget->CircleAngle + 10.8 <= SkillCheckWidget->PointerAngle 
+			&& SkillCheckWidget->PointerAngle < SkillCheckWidget->CircleAngle + 46.8)
+		{
+			return 1;
+		}
+
+		// Failed skill check
+		else
+		{
+			return 2;
+		}
 	}
 	else
 	{
 		return int8(2);
+	}
+}
+
+void ADBDPlayerController::StartWiggleSkillCheck()
+{
+	if (AlertSound)
+	{
+		UGameplayStatics::PlaySound2D(this, AlertSound);
+	}
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		SkillCheckTimerHandle,
+		this,
+		&ADBDPlayerController::WiggleSkillCheck,
+		0.5f,
+		false
+	);
+}
+
+void ADBDPlayerController::WiggleSkillCheck()
+{
+	if (SkillCheckWidget)
+	{
+		SkillCheckWidget->SetWiggleSKillCheck();
+		SkillCheckWidget->StartWiggleSkillCheck();
+		ShowSkillCheck();
+	}
+}
+
+void ADBDPlayerController::StopWiggleSkillCheck()
+{
+	if (SkillCheckWidget)
+	{
+		SkillCheckWidget->StopWiggleSkillCheck();
+		HideSkillCheck();
+	}
+}
+
+int8 ADBDPlayerController::GetWWiggleSkillCheckResult()
+{
+	if (SkillCheckWidget)
+	{
+		int8 SkillCheckTarget = SkillCheckWidget->GetWiggleSkillCheckTarget();
+		float PointerAngle = SkillCheckWidget->PointerAngle;
+		float MinGreat = 90.0f - (360.0f * (1.0f - SkillCheckWidget->GetWiggleGreatCirclePercent()) / 2);
+		float MaxGreat = 90.0f + (360.0f * (1.0f - SkillCheckWidget->GetWiggleGreatCirclePercent()) / 2);
+		float MinGood = 90.0f - (360.0f * (1.0f - SkillCheckWidget->GetWiggleGoodCirclePercent()) / 2);
+		float MaxGood = 90.0f + (360.0f * (1.0f - SkillCheckWidget->GetWiggleGoodCirclePercent()) / 2);
+
+		// Right target
+		if (SkillCheckTarget == 0)
+		{
+			// Great skill check
+			if (MinGreat <= PointerAngle && PointerAngle <= MaxGreat)
+			{
+				SkillCheckWidget->ChangePointerMoveDirection();
+				SkillCheckWidget->OnSucceededWiggleGreatSkillCheck();
+				SkillCheckWidget->OnSucceededWiggleSkillCheck();
+				bWasInZone = false;
+				return int8(0);
+			}
+			// Good skill check
+			else if (MinGood <= PointerAngle && PointerAngle <= MaxGood)
+			{
+				SkillCheckWidget->ChangePointerMoveDirection();
+				SkillCheckWidget->OnFailedWiggleGreatSkillCheck();
+				SkillCheckWidget->OnSucceededWiggleSkillCheck();
+				bWasInZone = false;
+				return int8(1);
+			}
+			// Failed skill check
+			else
+			{
+				SkillCheckWidget->OnFailedWiggleGreatSkillCheck();
+				SkillCheckWidget->OnFailedWiggleSkillCheck();
+				return int8(2);
+			}
+		}
+		// Left target
+		else
+		{
+			// Great skill check
+			if (MinGreat + 180.0f <= PointerAngle && PointerAngle <= MaxGreat + 180.0f)
+			{
+				SkillCheckWidget->ChangePointerMoveDirection();
+				SkillCheckWidget->OnSucceededWiggleGreatSkillCheck();
+				SkillCheckWidget->OnSucceededWiggleSkillCheck();
+				bWasInZone = false;
+				return int8(0);
+			}
+			// Good skill check
+			else if (MinGood + 180.0f <= PointerAngle && PointerAngle <= MaxGood + 180.0f)
+			{
+				SkillCheckWidget->ChangePointerMoveDirection();
+				SkillCheckWidget->OnFailedWiggleGreatSkillCheck();
+				SkillCheckWidget->OnSucceededWiggleSkillCheck();
+				bWasInZone = false;
+				return int8(1);
+			}
+			// Failed skill check
+			else
+			{
+				SkillCheckWidget->OnFailedWiggleGreatSkillCheck();
+				SkillCheckWidget->OnFailedWiggleSkillCheck();
+				return int8(2);
+			}
+		}
+	
+	}
+	else
+	{
+		return int8(2);
+	}
+}
+
+bool ADBDPlayerController::GetWiggleSkillCheckMiss()
+{
+	if (SkillCheckWidget)
+	{
+		int8 SkillCheckTarget = SkillCheckWidget->GetWiggleSkillCheckTarget();
+		bool bMoveClock = SkillCheckWidget->GetPointerMoveDirection();
+		float PointerAngle = SkillCheckWidget->PointerAngle;
+		float MinGood = 90.0f - (360.0f * (1.0f - SkillCheckWidget->GetWiggleGoodCirclePercent()) / 2);
+		float MaxGood = 90.0f + (360.0f * (1.0f - SkillCheckWidget->GetWiggleGoodCirclePercent()) / 2);
+		bool bIsZoneNow = false;
+
+		if (SkillCheckTarget == 0)
+		{
+			if (MinGood <= PointerAngle && PointerAngle <= MaxGood)
+			{
+				bIsZoneNow = true;
+				bWasInZone = true;
+			}
+		}
+		else
+		{
+			if (MinGood + 180.0f <= PointerAngle && PointerAngle <= MaxGood + 180.0f)
+			{
+				bIsZoneNow = true;
+				bWasInZone = true;
+			}
+		}
+
+		if (!bIsZoneNow && bWasInZone)
+		{
+			bWasInZone = false;
+			SkillCheckWidget->OnFailedWiggleGreatSkillCheck();
+			SkillCheckWidget->OnFailedWiggleSkillCheck();
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	else 
+	{
+		return false;
 	}
 }
 

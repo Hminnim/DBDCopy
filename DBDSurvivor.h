@@ -76,6 +76,9 @@ public:
 	UPROPERTY(Replicated)
 	bool bIsHealed = false;
 	bool bIsUnHooking = false;
+	bool bIsWiggling = false;
+	UPROPERTY(Replicated)
+	bool bIsWigglePause = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* VaultSlowAnim;
@@ -110,9 +113,11 @@ public:
 	UFUNCTION()
 	void OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);
 
-	// For healing 
+	// Survivor rate
 	UPROPERTY(Replicated)
 	float CurrentHealedRate = 0.0f;
+	UPROPERTY(Replicated)
+	float CurrentWiggleRate = 0.0f;
 
 	// To vault window
 	void BeginOverlapWindowVault();
@@ -248,12 +253,24 @@ private:
 	bool bIsReparingGenerator = false; // For server
 	void Server_HandleRepairGenerator(float DeltaTIme);
 
-	// Skill check
-	void StartSkillCheck();
-	void FailedSkillCheck();
-	void HandleSkillCheck(int8 Type);
+	// Generator and Heal Skill check
+	void StartGeneratorSkillCheck();
+	void FailedGeneratorSkillCheck();
+	void HandleGeneratorSkillCheck(int8 Type);
 	UFUNCTION()
-	void TryTriggerSkillCheck();
+	void TryTriggerGeneratorSkillCheck();
+	// Wiggle Skill Check
+	void StartWiggleSkillCheck();
+	void StopWiggleSkillCheck();
+	void HandleWiggleSkillCheck(int8 Type);
+	void HandleWiggleSkillCheckMiss();
+	UFUNCTION(Server, Reliable)
+	void Server_ChangeWiggleSKillCheckResult(int8 Type);
+
+	// Wiggle
+	void HandleWiggleRate(float DeltaTime);
+	UFUNCTION(Server, Reliable)
+	void Server_HandleWiggleRate(float DeltaTime);
 
 	// Heal survivor
 	void StartHealSurvivor();

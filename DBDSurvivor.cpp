@@ -143,7 +143,17 @@ void ADBDSurvivor::BeCarried()
 	{
 		GetCharacterMovement()->SetMovementMode(MOVE_None);
 		GetCharacterMovement()->Deactivate();
-	}	
+	}
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		SkillCheckTimer,
+		this,
+		&ADBDSurvivor::StartWiggleSkillCheck,
+		2.0f,
+		false
+	);
+
 }
 
 void ADBDSurvivor::StopBeCarried()
@@ -158,6 +168,7 @@ void ADBDSurvivor::StopBeCarried()
 		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 	}
 
+	StopWiggleSkillCheck();
 }
 
 void ADBDSurvivor::BeHooked()
@@ -245,9 +256,11 @@ void ADBDSurvivor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(ADBDSurvivor, bIsVaulting);
 	DOREPLIFETIME(ADBDSurvivor, bIsInteracting);
 	DOREPLIFETIME(ADBDSurvivor, bIsHealed);
+	DOREPLIFETIME(ADBDSurvivor, bIsWigglePause);
 	DOREPLIFETIME(ADBDSurvivor, CurrentHealedRate);
 	DOREPLIFETIME(ADBDSurvivor, CurrentHealthStateEnum);
 	DOREPLIFETIME(ADBDSurvivor, CurrentInteractionState);
+	DOREPLIFETIME(ADBDSurvivor, CurrentWiggleRate);
 }
 
 void ADBDSurvivor::FindKillerActor()
@@ -295,7 +308,7 @@ void ADBDSurvivor::Tick(float DeltaTime)
 		if (CurrentTargetSurvivor)
 		{
 			if (CurrentTargetSurvivor->CurrentHealthStateEnum == EHealthState::Healthy)
-			{
+			{ 
 				StopHealSurvivor();
 			}
 		}
@@ -305,8 +318,13 @@ void ADBDSurvivor::Tick(float DeltaTime)
 
 	// Handling bleeding
 	HandleBleeding(DeltaTime);
-
+	
 	HandleHealthState();
+
+	// Wiggle
+	HandleWiggleSkillCheckMiss();
+	HandleWiggleRate(DeltaTime);
+	/*Server_HandleWiggleRate(DeltaTime);*/
 
 	/*PlayTrerrorRadiusSound();*/
 }
@@ -471,20 +489,30 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 		return;
 	}
 
-	// Skill check
+	// Generator Skill Check and Heal Skill Check
 	if (CurrentInteractionState == ESurvivorInteraction::Repair || CurrentInteractionState == ESurvivorInteraction::Heal)
 	{
 		if (IsLocallyControlled())
 		{
 			if (PC->bIsSkillChecking)
 			{
-				HandleSkillCheck(PC->GetSkillCheckResult());
+				HandleGeneratorSkillCheck(PC->GetGeneratorSkillCheckResult());
 			}
 		}
 
 		return;
 	}
 
+	// Wiggle Skill Check
+	if (bIsWiggling && Value.Get<bool>())
+	{
+		if (IsLocallyControlled())
+		{
+			HandleWiggleSkillCheck(PC->GetWWiggleSkillCheckResult());
+		}
+	}
+
+	// Vault
 	if (bCanVault)
 	{
 		StartVault();
@@ -492,6 +520,7 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 		return;
 	}
 
+	// Drop
 	if (bCanDrop)
 	{
 		if (CurrentPallet)
@@ -501,6 +530,7 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 		}
 	}
 
+	// For debug
 	if (bCanCharacterChange)
 	{
 		if (IsLocallyControlled())
@@ -876,7 +906,7 @@ void ADBDSurvivor::StartRepairGenerator()
 		(
 			SkillCheckTriggerTimer,
 			this,
-			&ADBDSurvivor::TryTriggerSkillCheck,
+			&ADBDSurvivor::TryTriggerGeneratorSkillCheck,
 			1.0f,
 			true,
 			1.0f
@@ -897,8 +927,8 @@ void ADBDSurvivor::StopRepairGenerator()
 	{
 		if (PC->bIsSkillChecking)
 		{
-			PC->StopSkillCheck();
-			HandleSkillCheck(int8(2));
+			PC->StopGeneratorSkillCheck();
+			HandleGeneratorSkillCheck(int8(2));
 		}
 	}
 	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTriggerTimer);
@@ -976,37 +1006,37 @@ void ADBDSurvivor::Server_HandleRepairGenerator(float DeltaTIme)
 	CurrentGenerator->CurrentRepairRate += RepairSpeed[CurrentGenerator->CurrentRepairingSurvivor] * DeltaTIme;
 }
 
-void ADBDSurvivor::StartSkillCheck()
+void ADBDSurvivor::StartGeneratorSkillCheck()
 {
 	if (!IsLocallyControlled())
 	{
 		return;
 	}
 
-	PC->ShowSkillCheck();
+	PC->StartGeneratorSkillCheck();
 
 	GetWorld()->GetTimerManager().SetTimer
 	(
 		SkillCheckTimer,
 		this,
-		&ADBDSurvivor::FailedSkillCheck,
+		&ADBDSurvivor::FailedGeneratorSkillCheck,
 		1.6f,
 		false
 	);
 }
 
-void ADBDSurvivor::FailedSkillCheck()
+void ADBDSurvivor::FailedGeneratorSkillCheck()
 {
 	if (!IsLocallyControlled())
 	{
 		return;
 	}
 
-	PC->StopSkillCheck();
-	HandleSkillCheck((int8)2);
+	PC->StopGeneratorSkillCheck();
+	HandleGeneratorSkillCheck((int8)2);
 }
 
-void ADBDSurvivor::HandleSkillCheck(int8 Type)
+void ADBDSurvivor::HandleGeneratorSkillCheck(int8 Type)
 {
 	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTimer);
 
@@ -1046,7 +1076,7 @@ void ADBDSurvivor::HandleSkillCheck(int8 Type)
 	}
 }
 
-void ADBDSurvivor::TryTriggerSkillCheck()
+void ADBDSurvivor::TryTriggerGeneratorSkillCheck()
 {
 	if (!IsLocallyControlled())
 	{
@@ -1061,7 +1091,139 @@ void ADBDSurvivor::TryTriggerSkillCheck()
 	float Chance = FMath::FRand(); // 0.0 ~ 1.0
 	if (Chance < 0.08)
 	{
-		StartSkillCheck();
+		StartGeneratorSkillCheck();
+	}
+}
+
+void ADBDSurvivor::StartWiggleSkillCheck()
+{
+	if (bIsWiggling)
+	{
+		return;
+	}
+
+	bIsWiggling = true;
+
+	if (PC)
+	{
+		PC->StartWiggleSkillCheck();
+	}
+}
+
+void ADBDSurvivor::StopWiggleSkillCheck()
+{
+	bIsWiggling = false;
+	bIsWigglePause = false;
+	CurrentWiggleRate = 0.0f;
+
+	if (PC)
+	{
+		PC->StopWiggleSkillCheck();
+	}
+}
+
+void ADBDSurvivor::HandleWiggleSkillCheck(int8 Type)
+{
+	// Great skill check
+	if (Type == int8(0))
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Great skill check")));
+	}
+	// Good skill check
+	if (Type == int8(1))
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Good skill check")));
+	}
+	// Failed skill check
+	if (Type == int8(2))
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Failed skill check")));
+	}
+
+	Server_ChangeWiggleSKillCheckResult(Type);
+}
+
+void ADBDSurvivor::HandleWiggleSkillCheckMiss()
+{
+	if (!bIsWiggling)
+	{
+		return;
+	}
+
+	if (PC && IsLocallyControlled())
+	{
+		if (PC->GetWiggleSkillCheckMiss())
+		{
+			HandleWiggleSkillCheck(int8(2));
+		}
+	}
+}
+
+void ADBDSurvivor::Server_ChangeWiggleSKillCheckResult_Implementation(int8 Type)
+{
+	// Great skill check
+	if (Type == int8(0))
+	{
+		bIsWigglePause = false;
+	}
+	// Good skill check
+	if (Type == int8(1))
+	{
+		bIsWigglePause = false;
+	}
+	// Failed skill check
+	if (Type == int8(2))
+	{
+		bIsWigglePause = true;
+	}
+}
+
+void ADBDSurvivor::HandleWiggleRate(float DeltaTime)
+{
+	if (!bIsWiggling)
+	{
+		return;
+	}
+	else
+	{
+		if (IsLocallyControlled())
+		{
+			PC->ShowInteractionProgress(CurrentWiggleRate);
+		}
+	}
+
+	if (bIsWigglePause)
+	{
+		return;
+	}
+
+	float RateSpeed = 100.0f / 16.0f;
+	CurrentWiggleRate += RateSpeed * DeltaTime;
+
+	if (CurrentWiggleRate >= 100.0f)
+	{
+		bIsWigglePause = true;
+
+		if (IsLocallyControlled())
+		{
+			PC->HideInteractionProgress();
+		}
+	}
+}
+
+void ADBDSurvivor::Server_HandleWiggleRate_Implementation(float DeltaTime)
+{
+	if (!bIsWiggling || bIsWigglePause)
+	{
+		return;
+	}
+
+	float RateSpeed = 100.0f / 16.0f;
+	CurrentWiggleRate += RateSpeed * DeltaTime;
+
+	if (CurrentWiggleRate >= 100.0f)
+	{
+		bIsWigglePause = true;
 	}
 }
 
@@ -1095,7 +1257,7 @@ void ADBDSurvivor::StartHealSurvivor()
 		(
 			SkillCheckTriggerTimer,
 			this,
-			&ADBDSurvivor::TryTriggerSkillCheck,
+			&ADBDSurvivor::TryTriggerGeneratorSkillCheck,
 			1.0f,
 			true,
 			1.0f
@@ -1118,8 +1280,8 @@ void ADBDSurvivor::StopHealSurvivor()
 	{
 		if (PC->bIsSkillChecking)
 		{
-			PC->StopSkillCheck();
-			HandleSkillCheck(int8(2));
+			PC->StopGeneratorSkillCheck();
+			HandleGeneratorSkillCheck(int8(2));
 		}
 	}
 	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTriggerTimer);

@@ -16,6 +16,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h" 
 #include "Net/UnrealNetwork.h"
 #include "Engine/Engine.h"
 
@@ -104,6 +105,25 @@ void ADBDKiller::BeStunned()
 	}
 }
 
+void ADBDKiller::ChangeWiggleIntensity(int8 Type)
+{
+	// Great Skill Check
+	if (Type == int8(0))
+	{
+		CurrentWiggleIntensity = WiggleIntensity * 1.5f;
+	}
+	// Good Skill Check
+	if (Type == int8(1))
+	{
+		CurrentWiggleIntensity = WiggleIntensity * 0.5f;
+	}
+	// Failled Skill Check
+	if (Type == int8(2))
+	{
+		CurrentWiggleIntensity = 0.0f;
+	}
+}
+
 // Called when the game starts or when spawned
 void ADBDKiller::BeginPlay()
 {
@@ -174,6 +194,35 @@ void ADBDKiller::Tick(float DeltaTime)
 
 	FindActable();
 	HandleTargetSurvivor();
+
+	// Handle carrying surivor
+	if (bIsCarrying)
+	{
+		if (CurrentTargetSurvivor)
+		{
+			HandleWiggleStrape();
+
+			if (CurrentTargetSurvivor->CurrentWiggleRate >= 100.0f)
+			{
+				if (IsLocallyControlled())
+				{
+					GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Success Wiggle Killer")));
+				}
+				else
+				{
+					if (HasAuthority())
+					{
+						GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Success Wiggle Server")));
+					}
+					else
+					{
+						GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Success Wiggle Survivor")));
+					}					
+				}
+				StopCarryingSurvivor();
+			}
+		}
+	}
 }
 
 void ADBDKiller::NotifyControllerChanged()
@@ -244,14 +293,19 @@ void ADBDKiller::Look(const FInputActionValue& Value)
 
 void ADBDKiller::Interact(const FInputActionValue& Value)
 {
-	if (Value.Get<bool>() == false || bIsBreakingPallet || bIsBreakingGenerator || !bCanAttack || bIsAttacking || bIsVaulting || bIsHooking || bIsPickingUp || bIsStunned)
+	if ( bIsBreakingPallet || bIsBreakingGenerator || !bCanAttack || bIsAttacking || bIsVaulting || bIsHooking || bIsPickingUp || bIsStunned)
 	{
 		return;
 	}
 
-	Attack();
-	Server_Attack();
-	TryAttack();
+	if (Value.Get<bool>() && bCanAttack && !bIsLunging)
+	{
+		StartLunge();
+	}
+	else if (Value.Get<bool>() == false && bCanAttack && bIsLunging)
+	{
+		StartAttack();
+	}
 }
 
 void ADBDKiller::Action(const FInputActionValue& Value)
@@ -420,6 +474,18 @@ void ADBDKiller::AnimNotifyBeginHandler(FName NotifyName, const FBranchingPointN
 	if (NotifyName == "EndBeStunned")
 	{
 		EndBeStunned();
+	}
+	if (NotifyName == "EndAttack")
+	{
+		EndAttack();
+	}
+	if (NotifyName == "EndLunge")
+	{
+		HoldLunge();
+	}
+	if (NotifyName == "EndSwing")
+	{
+		TryAttack();
 	}
 }
 
@@ -630,8 +696,15 @@ void ADBDKiller::MultiCast_EndBreakGenerator_Implementation()
 	}
 }
 
+void ADBDKiller::StartAttack()
+{
+	Attack();
+	Server_Attack();
+}
+
 void ADBDKiller::Attack()
 {
+	StopLunge();
 	bCanAttack = false;
 	GetCharacterMovement()->MaxWalkSpeed = 100.0f;
 	bIsAttacking = true;
@@ -648,15 +721,6 @@ void ADBDKiller::Attack()
 
 void ADBDKiller::EndAttack()
 {
-	if (bIsCarrying)
-	{
-		StopAnimMontage(CarryingAttackAnim);
-	}
-	else
-	{
-		StopAnimMontage(AttackAnim);
-	}
-
 	bCanAttack = true;
 	bIsAttacking = false;
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
@@ -664,9 +728,121 @@ void ADBDKiller::EndAttack()
 
 void ADBDKiller::TryAttack()
 {
-	FVector FireStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
-	FVector FireEnd = (Camera->GetForwardVector() * 250) + FireStart;
-	Server_TryAttack(FireStart, FireEnd);
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
+
+	FVector FireStart = Camera->GetComponentLocation() + Camera->GetForwardVector() * 50;
+	FVector FireEnd = (Camera->GetForwardVector() * 100) + FireStart;
+	float AttackRadius = 50.0f;
+
+	FHitResult HitResult;
+	int8 HitType = 0;
+	bool bHitSurvivor = false;
+
+	TArray<AActor*> ActorsToIgnore;
+	ActorsToIgnore.Add(this);
+
+	bool bHit = UKismetSystemLibrary::SphereTraceSingle(
+		GetWorld(),
+		FireStart,
+		FireEnd,
+		AttackRadius,
+		UEngineTypes::ConvertToTraceType(ECC_GameTraceChannel1),
+		false,
+		ActorsToIgnore,
+		EDrawDebugTrace::ForDuration,
+		HitResult,
+		true
+	);
+
+	// Hit
+	if (bHit)
+	{
+		ADBDSurvivor* HitSurvivor = Cast<ADBDSurvivor>(HitResult.GetActor());
+
+		// Hit Survivor
+		if (HitSurvivor)
+		{
+			if (HitSurvivor->CurrentHealthStateEnum != EHealthState::DeepWound) 
+			{
+				Server_ApplyDamgeToSurvivor(HitResult.GetActor());
+				HitType = 1;
+				bHitSurvivor = true;
+			}
+		}
+		// Hit Object
+		else
+		{
+			HitType = 2;
+		}
+	}
+	
+	Server_HandleAttackDelay(bHitSurvivor, HitType);
+}
+
+void ADBDKiller::StartLunge()
+{
+	bIsLunging = true;
+	GetCharacterMovement()->MaxWalkSpeed = LungeSpeed;
+
+	if (LungeAnim)
+	{
+		PlayAnimMontage(LungeAnim);
+	}
+
+	Server_StartLunge();
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		LungeTimerHandle,
+		this,
+		&ADBDKiller::StartAttack,
+		MaxLungeTime,
+		false
+	);
+}
+
+void ADBDKiller::HoldLunge()
+{
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && LungeAnim)
+	{
+		AnimInstance->Montage_Pause(LungeAnim);
+	}
+}
+
+void ADBDKiller::StopLunge()
+{
+	bIsLunging = false;
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed; 
+	GetWorld()->GetTimerManager().ClearTimer(LungeTimerHandle);
+
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+	if (AnimInstance && AnimInstance->Montage_IsPlaying(LungeAnim))
+	{
+		AnimInstance->Montage_Stop(0.1f, LungeAnim);
+	}
+}
+
+void ADBDKiller::Server_StartLunge_Implementation()
+{
+	bIsLunging = true;
+	GetCharacterMovement()->MaxWalkSpeed = LungeSpeed;
+
+	MultiCast_StartLunge();
+}
+
+void ADBDKiller::MultiCast_StartLunge_Implementation()
+{
+	bIsLunging = true;
+	GetCharacterMovement()->MaxWalkSpeed = LungeSpeed;
+
+	if (LungeAnim && !IsLocallyControlled())
+	{
+		PlayAnimMontage(LungeAnim);
+	}
 }
 
 void ADBDKiller::Server_Attack_Implementation()
@@ -683,76 +859,64 @@ void ADBDKiller::MultiCast_Attack_Implementation()
 	}
 }
 
-void ADBDKiller::Server_TryAttack_Implementation(FVector FireStart, FVector FireEnd)
+void ADBDKiller::Server_HandleAttackDelay_Implementation(bool bIsSuccess, int8 type)
 {
-	bool bIsSuccess = false;
+	Multicast_HandleAttackDelay(bIsSuccess, type);
+	float AttackDelay = bIsSuccess ? 2.7f : 1.5f;
 
-	DrawDebugLine(GetWorld(), FireStart, FireEnd, FColor::Red);
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		AttackTimerHandle,
+		this,
+		&ADBDKiller::EndAttack,
+		AttackDelay,
+		false
+	);
+}
 
-	FHitResult HitResult;
-	if (GetWorld()->LineTraceSingleByChannel(HitResult, FireStart, FireEnd, ECollisionChannel::ECC_Visibility))
+void ADBDKiller::Multicast_HandleAttackDelay_Implementation(bool bIsSuccess, int8 type)
+{
+	float AttackDelay = bIsSuccess ? 2.7f : 1.5f;
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		AttackTimerHandle,
+		this,
+		&ADBDKiller::EndAttack,
+		AttackDelay,
+		false
+	);
+
+	if (!bIsCarrying)
 	{
-		if (HitResult.GetActor())
+		// Miss
+		if (type == 0 && MissAnim)
 		{
-			if (ADBDSurvivor* HitSuvivor = Cast<ADBDSurvivor>(HitResult.GetActor()))
-			{
-				if (HitSuvivor->CurrentHealthStateEnum != EHealthState::DeepWound)
-				{
-					UGameplayStatics::ApplyDamage(HitResult.GetActor(), 1, GetController(), this, UDamageType::StaticClass());
-					bIsSuccess = true;
-				}
-			}
-			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("HitResult : %s"), *HitResult.GetActor()->GetName()));
+			PlayAnimMontage(MissAnim);
+		}
+		// Hit survivor
+		if (type == 1 && HitSurvivorAnim)
+		{
+			PlayAnimMontage(HitSurvivorAnim);
+		}
+		// Hit object
+		if (type == 2 && HitObjectAnim)
+		{
+			PlayAnimMontage(HitObjectAnim);
 		}
 	}
-	else {
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Failed to Line Trace")));
-	}
-
-	Server_HandleAttackDelay(bIsSuccess);
+	// Carry Attack Animation is just one way.
 }
 
-void ADBDKiller::Server_HandleAttackDelay_Implementation(bool bIsSuccess)
+void ADBDKiller::Server_ApplyDamgeToSurvivor_Implementation(AActor* Survivor)
 {
-	Multicast_HandleAttackDelay(bIsSuccess);
-	float AttackDelay = bIsSuccess ? 2.7f : 1.5f;
-
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		AttackTimerHandle,
-		this,
-		&ADBDKiller::EndAttack,
-		AttackDelay,
-		false
-	);
-}
-
-void ADBDKiller::Multicast_HandleAttackDelay_Implementation(bool bIsSuccess)
-{
-	float AttackDelay = bIsSuccess ? 2.7f : 1.5f;
-
-	GetWorld()->GetTimerManager().SetTimer
-	(
-		AttackTimerHandle,
-		this,
-		&ADBDKiller::EndAttack,
-		AttackDelay,
-		false
-	);
+	UGameplayStatics::ApplyDamage(Survivor, 1, GetController(), this, UDamageType::StaticClass());
 }
 
 void ADBDKiller::Vault()
 {
 	if (bIsVaulting)
 	{
-		if (HasAuthority())
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Server bIsVaulting")));
-		}
-		else
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Client bIsVaulting")));
-		}
 		return;
 	}
 
@@ -778,22 +942,6 @@ void ADBDKiller::Vault()
 		{
 			KillerController->SetControlRotation(VaultRotation);
 		}
-		if (HasAuthority())
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Server")));
-		}
-	}
-	else
-	{
-		if (HasAuthority())
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Server !CurrentWindow")));
-		}
-		else
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Client !CurrentWindow")));
-		}
-		
 	}
 	
 	// Change collision
@@ -950,6 +1098,7 @@ void ADBDKiller::StopPickUp()
 void ADBDKiller::StartCarryingSurvivor()
 {
 	bIsCarrying = true;
+	bCanPickUp = false;
 
 	if (CurrentTargetSurvivor)
 	{
@@ -967,6 +1116,7 @@ void ADBDKiller::StartCarryingSurvivor()
 void ADBDKiller::StopCarryingSurvivor()
 {
 	bIsCarrying = false;
+	bCanPickUp = true;
 
 	if (CurrentTargetSurvivor)
 	{
@@ -989,6 +1139,24 @@ void ADBDKiller::OnRep_IsCarrying()
 	{
 		StopCarryingSurvivor();
 	}
+}
+
+void ADBDKiller::HandleWiggleStrape()
+{
+	if (!bIsCarrying || !CurrentTargetSurvivor)
+	{
+		return;
+	}
+
+	if (CurrentTargetSurvivor->bIsWigglePause)
+	{
+		return;
+	}
+
+	float TimeSeconds = GetWorld()->GetTimeSeconds();
+	float SineValue = FMath::Sin(TimeSeconds * WiggleSpeed);
+
+	AddMovementInput(GetActorRightVector(), SineValue * WiggleIntensity);
 }
 
 void ADBDKiller::TryDropDown()
@@ -1120,6 +1288,8 @@ void ADBDKiller::HookingSurvivor()
 	if (CurrentTargetSurvivor && CurrentHook)
 	{
 		CurrentTargetSurvivor->BeHooked();
+		CurrentHook->OnSurvivorHooked();
+		EnableSurvivorHookAura();
 
 		FName SocketName(TEXT("HookingNeedle"));
 		if (CurrentHook->HookStaticMesh->DoesSocketExist(SocketName))
@@ -1167,5 +1337,21 @@ void ADBDKiller::DisableHookAura()
 	if (AuraMaterialInstance)
 	{
 		AuraMaterialInstance->SetScalarParameterValue("ShowHookAura", 0.0f);
+	}
+}
+
+void ADBDKiller::EnableSurvivorHookAura()
+{
+	if (AuraMaterialInstance)
+	{
+		AuraMaterialInstance->SetScalarParameterValue("ShowSurvivorHookAura", 1.0f);
+	}
+}
+
+void ADBDKiller::DisableSurvivorHookAura()
+{
+	if (AuraMaterialInstance)
+	{
+		AuraMaterialInstance->SetScalarParameterValue("ShowSurvivorHookAura", 0.0f);
 	}
 }

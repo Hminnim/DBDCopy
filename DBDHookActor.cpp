@@ -53,3 +53,17 @@ void ADBDHookActor::BeginPlay()
 
 }
 
+void ADBDHookActor::OnSurvivorHooked()
+{
+	bHasHookedSuvivor = true;
+
+	HookStaticMesh->SetCustomDepthStencilValue(7);
+}
+
+void ADBDHookActor::OnSurvivorUnHooked()
+{
+	bHasHookedSuvivor = false;
+
+	HookStaticMesh->SetCustomDepthStencilValue(6);
+}
+

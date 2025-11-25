@@ -48,6 +48,7 @@ public:
 	bool bIsBreakingGenerator = false;
 	bool bCanAttack = true;
 	bool bIsAttacking = false;
+	bool bIsLunging = false;
 	bool bCanVault = false;
 	bool bIsVaulting = false;
 	UPROPERTY(ReplicatedUsing = OnRep_CanPickUp)
@@ -65,6 +66,9 @@ public:
 
 	// Be stunned
 	void BeStunned();
+
+	// Change wiggle intensity
+	void ChangeWiggleIntensity(int8 Type);
 
 protected:
 	// Called when the game starts or when spawned
@@ -89,7 +93,15 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* AttackAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* LungeAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* CarryingAttackAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* HitObjectAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* HitSurvivorAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* MissAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* VaultAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
@@ -107,8 +119,13 @@ protected:
 	UPROPERTY(Transient)
 	UMaterialInstanceDynamic* AuraMaterialInstance;
 
-	// Killer speed values
+	// Killer values
 	float WalkSpeed = 460.0f;
+	float LungeSpeed = 690.0f;
+	float MaxLungeTime = 0.8f;
+	float WiggleSpeed = 1.0f;
+	float WiggleIntensity = 1.0f;
+	float CurrentWiggleIntensity = 1.0f;
 
 private:
 	// Input action
@@ -164,19 +181,27 @@ private:
 	void MultiCast_EndBreakGenerator();
 
 	// Attack 
+	void StartAttack();
 	void Attack();
 	void EndAttack();
 	void TryAttack();
+	void StartLunge();
+	void HoldLunge();
+	void StopLunge();
 	UFUNCTION(Server, Reliable)
 	void Server_Attack();
 	UFUNCTION(NetMulticast, Reliable)
 	void MultiCast_Attack();
 	UFUNCTION(Server, Reliable)
-	void Server_TryAttack(FVector FireStart, FVector FireEnd);
-	UFUNCTION(Server,Reliable)
-	void Server_HandleAttackDelay(bool bIsSuccess);
+	void Server_StartLunge();
 	UFUNCTION(NetMulticast, Reliable)
-	void Multicast_HandleAttackDelay(bool bIsSuccess);
+	void MultiCast_StartLunge();
+	UFUNCTION(Server,Reliable)
+	void Server_HandleAttackDelay(bool bIsSuccess, int8 type);
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_HandleAttackDelay(bool bIsSuccess, int8 type);
+	UFUNCTION(Server, Reliable)
+	void Server_ApplyDamgeToSurvivor(AActor* Survivor);
 
 	// Vault
 	void Vault();
@@ -204,10 +229,6 @@ private:
 	void TryPickUp();
 	void StartPickUp();
 	void StopPickUp();
-	void StartCarryingSurvivor();
-	void StopCarryingSurvivor();
-	UFUNCTION()
-	void OnRep_IsCarrying();
 	UFUNCTION(Server, Reliable)
 	void Server_StartPickUp();
 	UFUNCTION(NetMulticast, Reliable)
@@ -216,6 +237,13 @@ private:
 	UFUNCTION(Server, Reliable)
 	void Server_StartDropDown();
 
+	// Carry survivor
+	void StartCarryingSurvivor();
+	void StopCarryingSurvivor();
+	UFUNCTION()
+	void OnRep_IsCarrying();
+	void HandleWiggleStrape();
+	
 	// Hook survivor
 	void StartHookSurvivor();
 	void StopHookSurvivor();
@@ -230,6 +258,8 @@ private:
 	// Controll Aura
 	void EnableHookAura();
 	void DisableHookAura();
+	void EnableSurvivorHookAura();
+	void DisableSurvivorHookAura();
 
 	// Replicated Actors
 	UPROPERTY(Replicated)
@@ -249,6 +279,7 @@ private:
 	// TimerHandles
 	FTimerHandle BreakTimerHandle;
 	FTimerHandle AttackTimerHandle;
+	FTimerHandle LungeTimerHandle;
 	FTimerHandle VaultTimerHandle;
 	FTimerHandle PickUpTimerHandle;
 	FTimerHandle CarryingTimerHandle;

@@ -26,4 +26,11 @@ public:
 	UBoxComponent* CollisionComponent;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
 	UBoxComponent* HitComponent;
+	
+	// Values
+	bool bHasHookedSuvivor = false;
+
+	// Function
+	void OnSurvivorHooked();
+	void OnSurvivorUnHooked();
 };

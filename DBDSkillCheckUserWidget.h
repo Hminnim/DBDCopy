@@ -26,12 +26,31 @@ public:
 	virtual bool Initialize() override;
 
 	void SetGeneratorSkillCheck();
+	void SetWiggleSKillCheck();
 
 	UFUNCTION()
-	void StartPointerMove();
+	void StartGeneratorSkillCheck();
 	UFUNCTION()
-	void StopPointerMove();
-	int8 GetSkillCheckResult();
+	void StopGeneratorSkillCheck();
+	UFUNCTION()
+	void StartWiggleSkillCheck();
+	UFUNCTION()
+	void StopWiggleSkillCheck();
+	UFUNCTION()
+	void ChangeWiggleGreatSkillCheckPercent(float NewPercent);
+	void OnSucceededWiggleGreatSkillCheck();
+	void OnFailedWiggleGreatSkillCheck();
+	void OnSucceededWiggleSkillCheck();
+	void OnFailedWiggleSkillCheck();
+
+	void ChangePointerMoveDirection();
+	bool GetPointerMoveDirection() const;
+	int8 GetWiggleSkillCheckTarget() const;
+	float GetWiggleGoodCirclePercent() const;
+	float GetWiggleGreatCirclePercent() const;
+
+	float PointerAngle = 0.0f;
+	float CircleAngle = 0.0f;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material")
@@ -51,11 +70,31 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	UImage* GreatCircleImage;
 	UPROPERTY(meta = (BindWidget))
+	UImage* GoodCircleImage_1;
+	UPROPERTY(meta = (BindWidget)) 
+	UImage* GreatCircleImage_1;
+	UPROPERTY(meta = (BindWidget))
 	UVerticalBox* Pointer;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Circle Color")
+	FLinearColor NormalCircleColor = FLinearColor::White;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Circle Color")
+	FLinearColor SuccessCircleColor = FLinearColor::Yellow;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Circle Color")
+	FLinearColor FailCircleColor = FLinearColor::Red;
 
 private:
 	bool bIsMoving = false;
+	bool bMoveClock = true;
+	bool bIsGenerator = false;
+	bool bIsWiggle = false;
 	float AngleElapsed = 0.0f;
-	float CircleAngle = 0.0f;
-	FTimerHandle SkillCheckTimerHandle;
+	float WiggleAngle = 0.0f;
+	float WiggleGoodCirclePercent = 0.76f;
+	float WiggleGreatCirclePercent = 0.94f;
+	int8 WiggleSkillCheckTarget = 0;
+	int32 WiggleGreatCount = 0;
+	FTimerHandle ColorChangeTimerHandle;
+
+	float GetWiggleCircleAngle(float targetAngle, float wiggleCirclePercent);
+	void ChangeCircleColorToNormal();
 };
