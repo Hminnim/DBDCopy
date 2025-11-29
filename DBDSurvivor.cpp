@@ -182,6 +182,23 @@ void ADBDSurvivor::BeHooked()
 		GetCharacterMovement()->SetMovementMode(MOVE_None);
 		GetCharacterMovement()->Deactivate();
 	}
+
+	// Handdle hook stage
+	if (CurrentHookStageType == int8(0))
+	{
+		CurrentHookStageType = int8(1);
+		CurrentHookStageRate = 100.0f;
+	}
+	else if (CurrentHookStageType == int8(1))
+	{
+		CurrentHookStageType = int8(2);
+		CurrentHookStageRate = 50.0f;
+		StartStruggleStage();
+	}
+	else if (CurrentHookStageType == int8(2))
+	{
+
+	}
 }
 
 void ADBDSurvivor::StopBeHooked()
@@ -194,6 +211,11 @@ void ADBDSurvivor::StopBeHooked()
 	{
 		GetCharacterMovement()->Activate();
 		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+	}
+
+	if (PC)
+	{
+		PC->HideInteractionProgress();
 	}
 }
 
@@ -320,11 +342,15 @@ void ADBDSurvivor::Tick(float DeltaTime)
 	HandleBleeding(DeltaTime);
 	
 	HandleHealthState();
+	HandleHookStageRate(DeltaTime);
 
 	// Wiggle
 	HandleWiggleSkillCheckMiss();
 	HandleWiggleRate(DeltaTime);
 	/*Server_HandleWiggleRate(DeltaTime);*/
+
+	// Self Unhooking progress
+	SelfUnhooking(DeltaTime);
 
 	/*PlayTrerrorRadiusSound();*/
 }
@@ -428,7 +454,7 @@ void ADBDSurvivor::Sprint(const FInputActionValue& Value)
 
 void ADBDSurvivor::Interact(const FInputActionValue& Value)
 {
-	if (CurrentInteractionState == ESurvivorInteraction::Idle || CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping || bIsHealed || bIsUnHooking)
+	if (CurrentHealthStateEnum == EHealthState::DeepWound || bIsDropping || bIsHealed || bIsUnHooking)
 	{
 		return;
 	}
@@ -480,6 +506,18 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 			return;
 		}
 	}
+
+	if (CurrentHealthStateEnum == EHealthState::Hooked && CurrentHookStageType == int(1))
+	{
+		if (Value.Get<bool>())
+		{
+			StartSelfUnhook();
+		}
+		else
+		{
+			StopSelfUnhook();
+		}
+	}
 }
 
 void ADBDSurvivor::Action(const FInputActionValue& Value)
@@ -529,6 +567,16 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 			Server_StartDrop();
 		}
 	}
+
+	// Struggle
+	if (CurrentHealthStateEnum == EHealthState::Hooked && CurrentHookStageType == int8(2) && bIsStruggling)
+	{
+		if (IsLocallyControlled())
+		{
+			HandleStruggleSkillCheck(PC->GetStruggleSkillCheckResult());
+		}
+	}
+
 
 	// For debug
 	if (bCanCharacterChange)
@@ -1159,6 +1207,59 @@ void ADBDSurvivor::HandleWiggleSkillCheckMiss()
 	}
 }
 
+void ADBDSurvivor::StartStruggleSkillCheck()
+{
+	StruggleSkillCheckCount++;
+	bIsStruggling = true;
+
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("StartStruggleSkillCheck")));
+
+	if (PC)
+	{
+		PC->StartStruggleSkillCheck(StruggleSkillCheckCount);
+	}
+
+	GetWorld()->GetTimerManager().SetTimer(
+		SkillCheckTimer,
+		this,
+		&ADBDSurvivor::FailedStruggleSkillCheck,
+		1.6f,
+		false
+	);
+}
+
+void ADBDSurvivor::StopStruggleSkillCheck()
+{
+	bIsStruggling = false;
+
+	if (PC)
+	{
+		PC->StopStruggleSkillCheck();
+	}
+
+	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTimer);
+}
+
+void ADBDSurvivor::FailedStruggleSkillCheck()
+{
+	HandleStruggleSkillCheck(int8(2));
+	StopStruggleSkillCheck();
+}
+
+void ADBDSurvivor::HandleStruggleSkillCheck(int8 Type)
+{
+	if (Type == int8(0))
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Success Struggle")));
+	}
+	if (Type == int8(2))
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Fail Struggle")));
+	}
+
+	StopStruggleSkillCheck();
+}
+
 void ADBDSurvivor::Server_ChangeWiggleSKillCheckResult_Implementation(int8 Type)
 {
 	// Great skill check
@@ -1600,6 +1701,137 @@ void ADBDSurvivor::MultiCast_StopUnhook_Implementation()
 	if (!IsLocallyControlled())
 	{
 		StopUnhook();
+	}
+}
+
+void ADBDSurvivor::HandleHookStageRate(float DeltaTime)
+{
+	if (CurrentHealthStateEnum != EHealthState::Hooked)
+	{
+		return;
+	}
+
+	float RateSpeed = 100.0f / 140.0f;
+	CurrentHookStageRate -= RateSpeed * DeltaTime;
+
+	if (CurrentHookStageType == int8(1) && CurrentHookStageRate <= 50.0f)
+	{
+		CurrentHookStageType = int8(2);
+		StartStruggleStage();
+	}
+	if (CurrentHookStageType == int8(2) && CurrentHookStageRate <= 0.0f)
+	{
+
+	}
+}
+
+void ADBDSurvivor::StartStruggleStage()
+{
+	if (CurrentHealthStateEnum != EHealthState::Hooked || CurrentHookStageType != int8(2) || !IsLocallyControlled())
+	{
+		return;
+	}
+
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Start Struggle Stage")));
+
+	GetWorld()->GetTimerManager().SetTimer(
+		StruggleStageTimer,
+		this,
+		&ADBDSurvivor::SetStruggleStage,
+		10.0f,
+		false
+	);
+}
+
+void ADBDSurvivor::SetStruggleStage()
+{
+	StartStruggleSkillCheck();
+
+	GetWorld()->GetTimerManager().SetTimer(
+		SkillCheckTriggerTimer,
+		this,
+		&ADBDSurvivor::StartStruggleSkillCheck,
+		60.0f / 11.0f,
+		true,
+		60.0f / 11.0f
+	);
+}
+
+void ADBDSurvivor::StopStruggleStage()
+{
+	GetWorld()->GetTimerManager().ClearTimer(StruggleStageTimer);
+	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTriggerTimer);
+}
+
+void ADBDSurvivor::StartSelfUnhook()
+{
+	if (CurrentHealthStateEnum != EHealthState::Hooked || CurrentHookStageType != int8(1))
+	{
+		return;
+	}
+
+	if (TrySelfUnhookAnim)
+	{
+		PlayAnimMontage(TrySelfUnhookAnim);
+	}
+	
+	CurrentSelfUnhookingRate = 0.0f;
+	bIsSelfUnhooking = true;
+}
+
+void ADBDSurvivor::SelfUnhooking(float DeltaTime)
+{
+	if (!bIsSelfUnhooking)
+	{
+		return;
+	}
+	
+	float RateSpeed = 100.0f / 1.5f;
+	CurrentSelfUnhookingRate += RateSpeed * DeltaTime;
+
+	if (PC)
+	{
+		PC->ShowInteractionProgress(CurrentSelfUnhookingRate);
+	}
+
+	if (CurrentSelfUnhookingRate >= 100.0f)
+	{
+		StopSelfUnhook();
+		TrySelfUnhook();
+	}
+}
+
+void ADBDSurvivor::StopSelfUnhook()
+{
+	if (TrySelfUnhookAnim)
+	{
+		StopAnimMontage(TrySelfUnhookAnim);
+	}
+
+	if (PC)
+	{
+		PC->HideInteractionProgress();
+	}
+
+	bIsSelfUnhooking = false;
+}
+
+void ADBDSurvivor::TrySelfUnhook()
+{
+	float Chance = FMath::FRand();
+	
+	// Success
+	if (Chance <= 0.04)
+	{
+		if (SuccessSelfUnhookAnim)
+		{
+			PlayAnimMontage(SuccessSelfUnhookAnim);
+		}
+	}
+	// Fail
+	else
+	{
+		CurrentHookStageRate -= 100.0f / 140.0f * 20.0f;
 	}
 }
 

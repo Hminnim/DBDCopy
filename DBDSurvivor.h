@@ -79,6 +79,8 @@ public:
 	bool bIsWiggling = false;
 	UPROPERTY(Replicated)
 	bool bIsWigglePause = false;
+	bool bIsSelfUnhooking = false;
+	bool bIsStruggling = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* VaultSlowAnim;
@@ -100,6 +102,10 @@ public:
 	UAnimMontage* RightPalletVaultAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* RightPalletVaultFastAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* TrySelfUnhookAnim;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
+	UAnimMontage* SuccessSelfUnhookAnim;
 
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "HealthState")
 	EHealthState CurrentHealthStateEnum = EHealthState::Healthy;
@@ -266,6 +272,11 @@ private:
 	void HandleWiggleSkillCheckMiss();
 	UFUNCTION(Server, Reliable)
 	void Server_ChangeWiggleSKillCheckResult(int8 Type);
+	// Struggle Skill Check
+	void StartStruggleSkillCheck();
+	void StopStruggleSkillCheck();
+	void FailedStruggleSkillCheck();
+	void HandleStruggleSkillCheck(int8 Type);
 
 	// Wiggle
 	void HandleWiggleRate(float DeltaTime);
@@ -327,6 +338,22 @@ private:
 	void MultiCast_StartUnhook();
 	UFUNCTION(NetMulticast, Reliable)
 	void MultiCast_StopUnhook();
+
+	// Hook Stages
+	int8 CurrentHookStageType = int8(0);
+	int8 StruggleSkillCheckCount = int8(0);
+	float CurrentHookStageRate = 100.0f;
+	void HandleHookStageRate(float DeltaTime);
+	void StartStruggleStage();
+	void SetStruggleStage();
+	void StopStruggleStage();
+
+	// Self Unhooking
+	float CurrentSelfUnhookingRate = 0.0f;
+	void StartSelfUnhook();
+	void SelfUnhooking(float DeltaTime);
+	void StopSelfUnhook();
+	void TrySelfUnhook();
 	
 	// Terror radius
 	void PlayTrerrorRadiusSound();
@@ -339,4 +366,5 @@ private:
 	FTimerHandle SkillCheckTriggerTimer;
 	FTimerHandle VaultTimer;
 	FTimerHandle FindKillerTimer;
+	FTimerHandle StruggleStageTimer;
 };

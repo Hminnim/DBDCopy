@@ -24,6 +24,7 @@ void UDBDSkillCheckUserWidget::NativePreConstruct()
 		{
 			GreatCircle->SetScalarParameterValue(FName("Percent"), 0.97f);
 			GreatCircleImage->SetBrushFromMaterial(GreatCircle);
+			GreatCircleImage->SetRenderTransformAngle(-36.0f);
 			GreatCircleImage->SetVisibility(ESlateVisibility::Visible);
 		}
 
@@ -36,6 +37,8 @@ void UDBDSkillCheckUserWidget::NativePreConstruct()
 		{
 			GreatCircleImage_1->SetVisibility(ESlateVisibility::Hidden);
 		}
+
+		SetStruggleSkillCheck(0);
 	}
 }
 
@@ -51,7 +54,7 @@ void UDBDSkillCheckUserWidget::NativeTick(const FGeometry& MyGeometry, float InD
 	PointerAngle = Pointer->GetRenderTransformAngle();
 
 	// Generator skill check
-	if (bIsGenerator)
+	if (bIsGenerator || bIsStruggle)
 	{
 		AngleElapsed += InDeltaTime;
 
@@ -61,6 +64,7 @@ void UDBDSkillCheckUserWidget::NativeTick(const FGeometry& MyGeometry, float InD
 		if (Angle >= 360.0f)
 		{
 			StopGeneratorSkillCheck();
+			StopStruggleSkillCheck();
 		}
 	}
 		
@@ -110,6 +114,7 @@ void UDBDSkillCheckUserWidget::SetGeneratorSkillCheck()
 	{
 		GreatCircle->SetScalarParameterValue(FName("Percent"), 0.97f);
 		GreatCircleImage->SetBrushFromMaterial(GreatCircle);
+		GreatCircleImage->SetRenderTransformAngle(-36.0f);
 		GreatCircleImage->SetVisibility(ESlateVisibility::Visible);
 	}
 
@@ -164,6 +169,37 @@ void UDBDSkillCheckUserWidget::SetWiggleSKillCheck()
 	}
 }
 
+void UDBDSkillCheckUserWidget::SetStruggleSkillCheck(int8 Count)
+{
+	CurrentStruggleSuccessPercent = StruggleSuccessPercent + float(Count) * 0.012f;
+
+	if (GoodCircle && GoodCircleImage)
+	{
+		GoodCircleImage->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	if (GreatCircle && GreatCircleImage)
+	{
+		GreatCircle->SetScalarParameterValue(FName("Percent"), CurrentStruggleSuccessPercent);
+		GreatCircleImage->SetBrushFromMaterial(GreatCircle);
+		GreatCircleImage->SetRenderTransformAngle(360.0f * (1.0f - CurrentStruggleSuccessPercent) - 45.0f);
+		GreatCircleImage->SetVisibility(ESlateVisibility::Visible);
+	}
+
+	if (GoodCircle && GoodCircleImage_1)
+	{
+		GoodCircleImage_1->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	if (GreatCircle && GreatCircleImage_1)
+	{
+		GreatCircleImage_1->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	CircleAngle = FMath::RandRange(120.0f, 300.0f);
+	Circles->SetRenderTransformAngle(CircleAngle);
+}
+
 void UDBDSkillCheckUserWidget::StartGeneratorSkillCheck()
 {
 	if (bIsMoving || !Pointer)
@@ -199,6 +235,24 @@ void UDBDSkillCheckUserWidget::StopWiggleSkillCheck()
 {
 	bIsMoving = false;
 	bIsWiggle = false;
+}
+
+void UDBDSkillCheckUserWidget::StartStruggleSkillCheck()
+{
+	if (bIsMoving || !Pointer)
+	{
+		return;
+	}
+
+	bIsMoving = true;
+	bIsStruggle = true;
+	AngleElapsed = 0.0f;
+}
+
+void UDBDSkillCheckUserWidget::StopStruggleSkillCheck()
+{
+	bIsMoving = false;
+	bIsStruggle = false;
 }
 
 void UDBDSkillCheckUserWidget::ChangeWiggleGreatSkillCheckPercent(float NewPercent)

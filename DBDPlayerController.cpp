@@ -152,20 +152,20 @@ int8 ADBDPlayerController::GetGeneratorSkillCheckResult()
 		if (SkillCheckWidget->CircleAngle <= SkillCheckWidget->PointerAngle 
 			&& SkillCheckWidget->PointerAngle < SkillCheckWidget->CircleAngle + 10.8)
 		{
-			return 0;
+			return int8(0);
 		}
 
 		// Good skill check
 		else if (SkillCheckWidget->CircleAngle + 10.8 <= SkillCheckWidget->PointerAngle 
 			&& SkillCheckWidget->PointerAngle < SkillCheckWidget->CircleAngle + 46.8)
 		{
-			return 1;
+			return int8(1);
 		}
 
 		// Failed skill check
 		else
 		{
-			return 2;
+			return int8(2);
 		}
 	}
 	else
@@ -331,6 +331,77 @@ bool ADBDPlayerController::GetWiggleSkillCheckMiss()
 	{
 		return false;
 	}
+}
+
+void ADBDPlayerController::StartStruggleSkillCheck(int8 Count)
+{
+	if (AlertSound)
+	{
+		UGameplayStatics::PlaySound2D(this, AlertSound);
+	}
+
+	if (SkillCheckWidget)
+	{
+		SkillCheckWidget->SetStruggleSkillCheck(Count);
+	}
+
+	GetWorld()->GetTimerManager().SetTimer
+	(
+		SkillCheckTimerHandle,
+		this,
+		&ADBDPlayerController::StruggleSkillCheck,
+		0.5f,
+		false
+	);
+}
+
+void ADBDPlayerController::StruggleSkillCheck()
+{
+	if (SkillCheckWidget)
+	{
+		SkillCheckWidget->SetVisibility(ESlateVisibility::Visible);
+		SkillCheckWidget->StartStruggleSkillCheck();
+	}
+	ShowSkillCheck();
+}
+
+void ADBDPlayerController::StopStruggleSkillCheck()
+{
+	if (SkillCheckWidget)
+	{
+		SkillCheckWidget->StopStruggleSkillCheck();
+		HideSkillCheck();
+	}
+
+	GetWorld()->GetTimerManager().ClearTimer(SkillCheckTimerHandle);
+}
+
+int8 ADBDPlayerController::GetStruggleSkillCheckResult()
+{
+	if (SkillCheckWidget)
+	{
+		if (SkillCheckWidget->PointerAngle < 0.0f)
+		{
+			SkillCheckWidget->PointerAngle += 360.0f;
+		}
+
+		// Success
+		if (SkillCheckWidget->CircleAngle < SkillCheckWidget->PointerAngle
+			&& SkillCheckWidget->PointerAngle <= SkillCheckWidget->CircleAngle + 360.0f * (1.0f - SkillCheckWidget-> CurrentStruggleSuccessPercent))
+		{
+			return int8(0);
+		}
+		// Fail
+		else
+		{
+			return int8(2);
+		}
+	}
+	else
+	{
+		return int8(2);
+	}
+	
 }
 
 void ADBDPlayerController::CharacterChange_Implementation(bool bIsKiller)

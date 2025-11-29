@@ -29,20 +29,28 @@ public:
 	void HideInteractionMessage();
 	void ShowInteractionProgress(float Value);
 	void HideInteractionProgress();
+
 	void ShowActionMessage(FString Message);
 	void HideActionMessage();
 	void ShowSkillCheck();
 	void HideSkillCheck();
+
 	UFUNCTION()
 	void StartGeneratorSkillCheck();
 	void GeneratorSkillcheck();
 	void StopGeneratorSkillCheck();
 	int8 GetGeneratorSkillCheckResult();
+
 	void StartWiggleSkillCheck();
 	void WiggleSkillCheck();
 	void StopWiggleSkillCheck();
 	int8 GetWWiggleSkillCheckResult();
 	bool GetWiggleSkillCheckMiss();
+
+	void StartStruggleSkillCheck(int8 Count);
+	void StruggleSkillCheck();
+	void StopStruggleSkillCheck();
+	int8 GetStruggleSkillCheckResult();
 
 	UFUNCTION(Server, Reliable)
 	void CharacterChange(bool bIsKiller);

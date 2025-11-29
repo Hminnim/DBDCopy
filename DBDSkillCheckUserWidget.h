@@ -27,6 +27,7 @@ public:
 
 	void SetGeneratorSkillCheck();
 	void SetWiggleSKillCheck();
+	void SetStruggleSkillCheck(int8 Count);
 
 	UFUNCTION()
 	void StartGeneratorSkillCheck();
@@ -36,6 +37,11 @@ public:
 	void StartWiggleSkillCheck();
 	UFUNCTION()
 	void StopWiggleSkillCheck();
+	UFUNCTION()
+	void StartStruggleSkillCheck();
+	UFUNCTION()
+	void StopStruggleSkillCheck();
+
 	UFUNCTION()
 	void ChangeWiggleGreatSkillCheckPercent(float NewPercent);
 	void OnSucceededWiggleGreatSkillCheck();
@@ -51,6 +57,8 @@ public:
 
 	float PointerAngle = 0.0f;
 	float CircleAngle = 0.0f;
+	float StruggleSuccessPercent = 0.82f;
+	float CurrentStruggleSuccessPercent = 0.0f;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Material")
@@ -87,6 +95,7 @@ private:
 	bool bMoveClock = true;
 	bool bIsGenerator = false;
 	bool bIsWiggle = false;
+	bool bIsStruggle = false;
 	float AngleElapsed = 0.0f;
 	float WiggleAngle = 0.0f;
 	float WiggleGoodCirclePercent = 0.76f;
