@@ -110,8 +110,12 @@ public:
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "HealthState")
 	EHealthState CurrentHealthStateEnum = EHealthState::Healthy;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Blood")
-	TSubclassOf<ADBDBloodDecalActor> BloodDecalClass;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Decal")
+	UMaterialInterface* BloodDecalMaterial;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Decal")
+	FVector BloodDecalSize = FVector(128.0f, 128.0f, 128.0f);
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Decal")
+	float BloodDecalLifeTime = 10.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio")
 	UAudioComponent* HeartBeatSound;

@@ -13,6 +13,8 @@ ADBDSurvivor::ADBDSurvivor()
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
+	GetMesh()->bReceivesDecals = false;
+
 	// Set default character movement
 	bUseControllerRotationYaw = false;
 	GetCharacterMovement()->bOrientRotationToMovement = true;
@@ -1476,22 +1478,39 @@ void ADBDSurvivor::HandleBleeding(float DeltaTime)
 {
 	if (CurrentHealthStateEnum != EHealthState::Healthy)
 	{
-		if (BloodDecalClass)
+		BleedingTimer += DeltaTime;
+
+		if (BleedingTimer >= 1.2f)
 		{
-			BleedingTimer += DeltaTime;
-
-			if (BleedingTimer >= 1.2f)
+			UCharacterMovementComponent* CMC = GetCharacterMovement();
+			if (CMC)
 			{
-				FVector SpawnLocation = GetActorLocation();
-				SpawnLocation.Z = 0.0f;
-				FRotator SpawnRotation = FRotator(-90.0f, -90.0f, -180.0f);
+				FFindFloorResult& FloorResult = CMC->CurrentFloor;
 
-				ADBDBloodDecalActor* DecalActor = GetWorld()->SpawnActor<ADBDBloodDecalActor>(BloodDecalClass, SpawnLocation, SpawnRotation);
-				DecalActor->SetLifeSpan(10.0f);
-				DecalActor->SetActorScale3D(FVector(0.75f, 0.75f, 0.75f));
-				DecalActor->DecalComponent->DecalSize = FVector( 40.0f,80.0f,80.0f);
-				BleedingTimer = 0.0f;
+				if (FloorResult.bBlockingHit && FloorResult.IsWalkableFloor())
+				{
+					FVector HitLocation = FloorResult.HitResult.Location;
+					FVector HitNormal = FloorResult.HitResult.ImpactNormal;
+
+					FRotator SpawnDecalRotation = HitNormal.Rotation();
+					/*SpawnDecalRotation.Pitch -= 90.0f;*/
+					SpawnDecalRotation.Yaw += FMath::RandRange(0.0f, 360.0f);
+
+					if (BloodDecalMaterial)
+					{
+						UGameplayStatics::SpawnDecalAtLocation(
+							GetWorld(),
+							BloodDecalMaterial,
+							BloodDecalSize,
+							HitLocation,
+							SpawnDecalRotation,
+							BloodDecalLifeTime
+						);
+					}
+				}
 			}
+
+			BleedingTimer = 0.0f;
 		}
 	}
 }

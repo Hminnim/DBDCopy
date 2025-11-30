@@ -27,6 +27,7 @@ ADBDKiller::ADBDKiller()
 	PrimaryActorTick.bCanEverTick = true;
 
 	bReplicates = true;
+	GetMesh()->bReceivesDecals = false;
 
 	// Set default character movement
 	bUseControllerRotationYaw = true;
