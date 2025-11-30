@@ -18,7 +18,6 @@
 #include "DBDGeneratorActor.h"
 #include "DBDWindowActor.h"
 #include "DBDPlayerController.h" 
-#include "DBDBloodDecalActor.h"
 #include "DBDPalletActor.h"
 #include "DBDHookActor.h"
 #include "DBDSurvivor.generated.h"
