@@ -109,12 +109,18 @@ public:
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "HealthState")
 	EHealthState CurrentHealthStateEnum = EHealthState::Healthy;
 
+	// Blood Decal
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Decal")
 	UMaterialInterface* BloodDecalMaterial;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Decal")
 	FVector BloodDecalSize = FVector(128.0f, 128.0f, 128.0f);
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Decal")
 	float BloodDecalLifeTime = 10.0f;
+	// Scratch Decal
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Decal")
+	UMaterialInterface* ScratchDecalMaterial;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Decal")
+	FVector ScratchDecalSize = FVector(20.0f, 80.0f, 5.0f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Audio")
 	UAudioComponent* HeartBeatSound;
@@ -155,6 +161,9 @@ public:
 	// To be unhooked by survivor;
 	void StartBeingUnhooked();
 	void StopBeingUnhooked();
+
+	// To show survivor scratch mark(Only for Killer)
+	void OnToShowScratchMark();
 
 protected:
 	// Called when the game starts or when spawned
@@ -357,7 +366,13 @@ private:
 	void SelfUnhooking(float DeltaTime);
 	void StopSelfUnhook();
 	void TrySelfUnhook();
-	
+
+	// Scratch Mark
+	float ScratchTimer = 0.0f;
+	bool bCanShowScratch = false;
+	void HandleSpawnScratchMark(float DeltaTime);
+	void SpawnScratchMark();
+
 	// Terror radius
 	void PlayTrerrorRadiusSound();
 

@@ -2,6 +2,10 @@
 
 
 #include "DBDTitlePlayerController.h"
+#include "Blueprint/UserWidget.h"
+#include "DBDGameInstance.h"
+#include "Kismet/GameplayStatics.h"
+#include "DBDSessionInstanceSubsystem.h"
 
 void ADBDTitlePlayerController::BeginPlay()
 {
@@ -19,14 +23,32 @@ void ADBDTitlePlayerController::BeginPlay()
 	}
 }
 
-void ADBDTitlePlayerController::OnChracterSelected(bool bIsKiller)
+void ADBDTitlePlayerController::CreateSession()
 {
 	UDBDGameInstance* GI = Cast<UDBDGameInstance>(GetGameInstance());
-	
 	if (GI)
 	{
-		GI->bIsKiller = bIsKiller;
-	}
+		GI->bIsKiller = true;
 
-	UGameplayStatics::OpenLevel(this, "Main");
+		UDBDSessionInstanceSubsystem* SessionSystem = GI->GetSubsystem<UDBDSessionInstanceSubsystem>();
+		if (SessionSystem)
+		{
+			SessionSystem->CreateSession(5, true);
+		}
+	}
+}
+
+void ADBDTitlePlayerController::FindSession()
+{
+	UDBDGameInstance* GI = Cast<UDBDGameInstance>(GetGameInstance());
+	if (GI)
+	{
+		GI->bIsKiller = false;
+
+		UDBDSessionInstanceSubsystem* SessionSystem = GI->GetSubsystem<UDBDSessionInstanceSubsystem>();
+		if (SessionSystem)
+		{
+			SessionSystem->FindSessions(10, true);
+		}
+	}
 }

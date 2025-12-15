@@ -173,6 +173,18 @@ void ADBDKiller::BeginPlay()
 	{
 		AuraPostProcessComponent->bEnabled = false;
 	}
+
+	if (IsLocallyControlled())
+	{
+		FTimerHandle FindSurvivor;
+		GetWorld()->GetTimerManager().SetTimer(
+			FindSurvivor,
+			this,
+			&ADBDKiller::ShowSurvivorScratchMark,
+			2.0f,
+			false
+		);
+	}
 }
 
 void ADBDKiller::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -1354,5 +1366,16 @@ void ADBDKiller::DisableSurvivorHookAura()
 	if (AuraMaterialInstance)
 	{
 		AuraMaterialInstance->SetScalarParameterValue("ShowSurvivorHookAura", 0.0f);
+	}
+}
+
+void ADBDKiller::ShowSurvivorScratchMark()
+{
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ADBDSurvivor::StaticClass(), FoundActors);
+	for (AActor* Actor : FoundActors)
+	{
+		ADBDSurvivor* FoundSurvivor = Cast<ADBDSurvivor>(Actor);
+		FoundSurvivor->OnToShowScratchMark();
 	}
 }

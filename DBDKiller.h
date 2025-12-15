@@ -261,6 +261,9 @@ private:
 	void EnableSurvivorHookAura();
 	void DisableSurvivorHookAura();
 
+	// Show Survivor Scratch Mark
+	void ShowSurvivorScratchMark();
+
 	// Replicated Actors
 	UPROPERTY(Replicated)
 	ADBDPalletActor* CurrentPallet;

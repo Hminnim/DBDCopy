@@ -4,10 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Components/Button.h"
-#include "DBDTitlePlayerController.h"
+#include "FindSessionsCallbackProxy.h"
 #include "DBDTitleUserWidget.generated.h"
 
+class UButton;
+class UScrollBox;
 /**
  * 
  */
@@ -27,6 +28,16 @@ protected:
 	class UButton* KillerButton;
 	UPROPERTY(meta = (BindWidget))
 	class UButton* SurvivorButton;
+	UPROPERTY(meta = (BindWidget))
+	class UScrollBox* SessionListScrollBox;
+	UPROPERTY(meta = (BindWidget))
+	class UWidget* SessionListPopup;
+	UPROPERTY(meta = (BindWidget))
+	class UButton* BackButton;
+
+	// Slot widget class
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UDBDSessionSlotWidget> SessionSlotClass;
 
 private:
 	// Widget bind function
@@ -36,4 +47,11 @@ private:
 	void OnKillerButtonClicked();
 	UFUNCTION()
 	void OnSurvivorButtonClicked();
+	UFUNCTION()
+	void OnBackButtonClicked();
+
+	UFUNCTION()
+	void OnFindSessionsComplete(const TArray<FBlueprintSessionResult>& SessionResults);
+	UFUNCTION()
+	void OnCreateSessionComplete(bool bSuccessful);
 };

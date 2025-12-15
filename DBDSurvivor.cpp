@@ -237,6 +237,11 @@ void ADBDSurvivor::StopBeingUnhooked()
 	}
 }
 
+void ADBDSurvivor::OnToShowScratchMark()
+{
+	bCanShowScratch = true;
+}
+
 void ADBDSurvivor::OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
 {
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("OnTakeDamge")));
@@ -353,6 +358,8 @@ void ADBDSurvivor::Tick(float DeltaTime)
 
 	// Self Unhooking progress
 	SelfUnhooking(DeltaTime);
+
+	HandleSpawnScratchMark(DeltaTime);
 
 	/*PlayTrerrorRadiusSound();*/
 }
@@ -1511,6 +1518,8 @@ void ADBDSurvivor::HandleBleeding(float DeltaTime)
 			}
 
 			BleedingTimer = 0.0f;
+
+
 		}
 	}
 }
@@ -1751,8 +1760,6 @@ void ADBDSurvivor::StartStruggleStage()
 		return;
 	}
 
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Start Struggle Stage")));
-
 	GetWorld()->GetTimerManager().SetTimer(
 		StruggleStageTimer,
 		this,
@@ -1853,6 +1860,72 @@ void ADBDSurvivor::TrySelfUnhook()
 		CurrentHookStageRate -= 100.0f / 140.0f * 20.0f;
 	}
 }
+
+void ADBDSurvivor::HandleSpawnScratchMark(float DeltaTime)
+{
+	if (!bIsSprinting || GetVelocity().Size() < 380.0f || !bCanShowScratch)
+	{
+		return;
+	}
+
+	ScratchTimer += DeltaTime;
+
+	if (ScratchTimer >= 0.4f)
+	{
+		SpawnScratchMark();
+
+		ScratchTimer = 0.0f;
+	}
+}
+
+void ADBDSurvivor::SpawnScratchMark()
+{
+	UCharacterMovementComponent* CMC = GetCharacterMovement();
+	if (CMC)
+	{
+		FFindFloorResult& FloorResult = CMC->CurrentFloor;
+
+		if (FloorResult.bBlockingHit && FloorResult.IsWalkableFloor())
+		{
+			int32 SpawnCount = FMath::RandRange(5, 9);
+
+			FVector HitLocation = FloorResult.HitResult.Location;
+			FVector HitNormal = FloorResult.HitResult.ImpactNormal;
+
+			FRotator DecalOrientation = (-HitNormal).Rotation();
+
+			// Select surface axis that can move
+			FVector SurfaceRight = FRotationMatrix(DecalOrientation).GetScaledAxis(EAxis::Y);
+			FVector SurfaceUp = FRotationMatrix(DecalOrientation).GetScaledAxis(EAxis::Z);
+
+			for (int32 i = 0; i < SpawnCount; i++)
+
+			{
+				float RandY = FMath::RandRange(-50.0f, 50.0f);
+				float RandZ = FMath::RandRange(-50.0f, 50.0f);
+
+				FVector SpawnLocation = HitLocation + (SurfaceRight * RandY) + (SurfaceUp * RandZ);
+
+				FRotator SpawnRot = DecalOrientation;
+				SpawnRot.Roll = FMath::RandRange(0.0f, 360.0f);
+				/*SpawnRot.Pitch = -90.0f;*/
+
+				if (ScratchDecalMaterial)
+				{
+					UGameplayStatics::SpawnDecalAtLocation(
+						GetWorld(),
+						ScratchDecalMaterial,
+						ScratchDecalSize,
+						SpawnLocation,
+						SpawnRot,
+						10.0f
+					);
+				}
+			}
+		}
+	}
+}
+
 
 void ADBDSurvivor::PlayTrerrorRadiusSound()
 {
