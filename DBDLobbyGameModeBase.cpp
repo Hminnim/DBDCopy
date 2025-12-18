@@ -48,6 +48,11 @@ void ADBDLobbyGameModeBase::CheckAllPlayersReady()
 		APlayerController* PC = It->Get();
 		if (PC)
 		{
+			if (PC->HasAuthority())
+			{
+				continue;
+			}
+
 			ADBDLobbyPlayerState* PS = PC->GetPlayerState<ADBDLobbyPlayerState>();
 			if (!PS)
 			{

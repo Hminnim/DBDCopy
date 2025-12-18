@@ -30,6 +30,8 @@ void UDBDSessionInstanceSubsystem::CreateSession(int32 NumPublicConnections, boo
 		return;
 	}
 
+	SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionDelegatehandle);
+
 	// Session Settings
 	FOnlineSessionSettings SessionSettings;
 	SessionSettings.bIsLANMatch = bIsLAN;
@@ -42,7 +44,7 @@ void UDBDSessionInstanceSubsystem::CreateSession(int32 NumPublicConnections, boo
 	// Custom data setting
 	SessionSettings.Set(SETTING_MAPNAME, FString("LobbyMap"), EOnlineDataAdvertisementType::ViaOnlineService);
 
-	SessionInterface->AddOnCreateSessionCompleteDelegate_Handle(
+	CreateSessionDelegatehandle = SessionInterface->AddOnCreateSessionCompleteDelegate_Handle(
 		FOnCreateSessionCompleteDelegate::CreateUObject(this, &UDBDSessionInstanceSubsystem::OnCreatedSessionComplete));
 
 	// Request create session
@@ -62,6 +64,8 @@ void UDBDSessionInstanceSubsystem::FindSessions(int32 MaxSearchResults, bool bIs
 		return;
 	}
 
+	SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionDelegatehandle);
+
 	LastSessionSearch = MakeShareable(new FOnlineSessionSearch());
 	LastSessionSearch->bIsLanQuery = bIsLAN;
 	LastSessionSearch->MaxSearchResults = MaxSearchResults;
@@ -69,7 +73,7 @@ void UDBDSessionInstanceSubsystem::FindSessions(int32 MaxSearchResults, bool bIs
 	// PRESENCE Session Search
 	LastSessionSearch->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
 
-	SessionInterface->AddOnFindSessionsCompleteDelegate_Handle(
+	FindSessionDelegatehandle = SessionInterface->AddOnFindSessionsCompleteDelegate_Handle(
 		FOnFindSessionsCompleteDelegate::CreateUObject(this, &UDBDSessionInstanceSubsystem::OnFindSessionComplete));
 
 	SessionInterface->FindSessions(0, LastSessionSearch.ToSharedRef());
@@ -83,7 +87,9 @@ void UDBDSessionInstanceSubsystem::JoinSession(const FBlueprintSessionResult& Se
 		return;
 	}
 
-	SessionInterface->AddOnJoinSessionCompleteDelegate_Handle(
+	SessionInterface->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionDelegatehandle);
+
+	JoinSessionDelegatehandle = SessionInterface->AddOnJoinSessionCompleteDelegate_Handle(
 		FOnJoinSessionCompleteDelegate::CreateUObject(this,&UDBDSessionInstanceSubsystem::OnJoinSessionComplete));
 
 	const FName SessionName = NAME_GameSession;
@@ -92,6 +98,12 @@ void UDBDSessionInstanceSubsystem::JoinSession(const FBlueprintSessionResult& Se
 
 void UDBDSessionInstanceSubsystem::OnCreatedSessionComplete(FName SessionName, bool bWasSuccessful)
 {
+	const IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (SessionInterface.IsValid())
+	{
+		SessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(CreateSessionDelegatehandle);
+	}
+
 	UE_LOG(LogTemp, Warning, TEXT("[Session] Create Session Result: %s"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"));
 	
 	OnCreateSessionCompleteEvent.Broadcast(bWasSuccessful);
@@ -99,6 +111,12 @@ void UDBDSessionInstanceSubsystem::OnCreatedSessionComplete(FName SessionName, b
 
 void UDBDSessionInstanceSubsystem::OnFindSessionComplete(bool bWasSuccessful)
 {
+	const IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (SessionInterface.IsValid())
+	{
+		SessionInterface->ClearOnFindSessionsCompleteDelegate_Handle(FindSessionDelegatehandle);
+	}
+
 	int32 Count = (bWasSuccessful && LastSessionSearch.IsValid()) ? LastSessionSearch->SearchResults.Num() : 0;
 	UE_LOG(LogTemp, Warning, TEXT("[Session] Find Session Result: %s, Found Count: %d"), bWasSuccessful ? TEXT("Success") : TEXT("Failed"), Count);
 	
@@ -120,13 +138,18 @@ void UDBDSessionInstanceSubsystem::OnFindSessionComplete(bool bWasSuccessful)
 
 void UDBDSessionInstanceSubsystem::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
 {
+	const IOnlineSessionPtr SessionInterface = GetSessionInterface();
+	if (SessionInterface.IsValid())
+	{
+		SessionInterface->ClearOnJoinSessionCompleteDelegate_Handle(JoinSessionDelegatehandle);
+	}
+
 	UE_LOG(LogTemp, Warning, TEXT("[Session] Join Session Result Code: %d"), (int32)Result);
 
 	bool bIsSuccess = (Result == EOnJoinSessionCompleteResult::Success);
 
 	if (bIsSuccess)
 	{
-		const IOnlineSessionPtr SessionInterface = GetSessionInterface();
 		if (SessionInterface.IsValid())
 		{
 			// Travel to Session

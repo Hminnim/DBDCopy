@@ -11,7 +11,7 @@ void ADBDTitlePlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (TitleUserWidgetclass)
+	if (TitleUserWidgetclass && IsLocalController())
 	{
 		TitleUserWidget = CreateWidget<UUserWidget>(this, TitleUserWidgetclass);
 		if (TitleUserWidget)

@@ -4,7 +4,9 @@
 #include "DBDLobbyPlayerController.h"
 #include "DBDLobbyPlayerState.h"
 #include "DBDLobbyGameModeBase.h"
+#include "DBDSessionInstanceSubsystem.h"
 #include "Kismet/GameplayStatics.h"
+#include "Blueprint/UserWidget.h"
 #include "DBDGameInstance.h"
 
 void ADBDLobbyPlayerController::BeginPlay()
@@ -18,6 +20,17 @@ void ADBDLobbyPlayerController::BeginPlay()
 		{
 			bool bIsKiller = GI->bIsKiller;
 			Server_SetIsKiller(bIsKiller);
+		}
+
+		if (LobbyUserWidgetClass)
+		{
+			LobbyUserWidget = CreateWidget<UUserWidget>(this, LobbyUserWidgetClass);
+			if (LobbyUserWidget)
+			{
+				LobbyUserWidget->AddToViewport(0);
+				SetInputMode(FInputModeUIOnly());
+				bShowMouseCursor = true;
+			}
 		}
 	}
 }
@@ -52,6 +65,20 @@ void ADBDLobbyPlayerController::ProcessLobbyDestroy()
 
 void ADBDLobbyPlayerController::LeaveLobby()
 {
+	UGameInstance* GI = GetGameInstance();
+	if (GI)
+	{
+		UDBDSessionInstanceSubsystem* Subsystem = GI->GetSubsystem<UDBDSessionInstanceSubsystem>();
+		if (Subsystem)
+		{
+			const IOnlineSessionPtr SessionInterface = Subsystem->GetSessionInterface();
+			if (SessionInterface)
+			{
+				SessionInterface->DestroySession(NAME_GameSession);
+			}
+		}
+	}
+
 	UGameplayStatics::OpenLevel(this, FName("TitleMenu"));
 }
 

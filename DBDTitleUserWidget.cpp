@@ -4,6 +4,7 @@
 #include "DBDTitleUserWidget.h"
 #include "Components/Button.h"
 #include "Components/ScrollBox.h"
+#include "Components/CircularThrobber.h"
 #include "DBDSessionSlotWidget.h"
 #include "DBDSessionInstanceSubsystem.h"
 #include "Kismet/GameplayStatics.h"
@@ -12,6 +13,13 @@
 bool UDBDTitleUserWidget::Initialize()
 {
 	Super::Initialize();
+
+	return true;
+}
+
+void UDBDTitleUserWidget::NativeConstruct()
+{
+	Super::NativeConstruct();
 
 	//Bind function
 	if (QuitButton)
@@ -30,6 +38,10 @@ bool UDBDTitleUserWidget::Initialize()
 	{
 		BackButton->OnClicked.AddDynamic(this, &UDBDTitleUserWidget::OnBackButtonClicked);
 	}
+	if (RefreshButton)
+	{
+		RefreshButton->OnClicked.AddDynamic(this, &UDBDTitleUserWidget::OnRefreshButtonClicked);
+	}
 	if (SessionListPopup)
 	{
 		SessionListPopup->SetVisibility(ESlateVisibility::Hidden);
@@ -45,8 +57,6 @@ bool UDBDTitleUserWidget::Initialize()
 			Subsystem->OnCreateSessionCompleteEvent.AddDynamic(this, &UDBDTitleUserWidget::OnCreateSessionComplete);
 		}
 	}
-
-	return true;
 }
 
 void UDBDTitleUserWidget::OnQuitButtonClicked()
@@ -68,6 +78,12 @@ void UDBDTitleUserWidget::OnSurvivorButtonClicked()
 	if (SessionListScrollBox)
 	{
 		SessionListScrollBox->ClearChildren();
+		SessionListPopup->SetVisibility(ESlateVisibility::Visible);
+	}
+
+	if (LoadingThrobber)
+	{
+		LoadingThrobber->SetVisibility(ESlateVisibility::Visible);
 	}
 
 	ADBDTitlePlayerController* PC = GetOwningPlayer<ADBDTitlePlayerController>();
@@ -89,14 +105,51 @@ void UDBDTitleUserWidget::OnBackButtonClicked()
 	}
 }
 
+void UDBDTitleUserWidget::OnRefreshButtonClicked()
+{
+	if (SessionListScrollBox)
+	{
+		SessionListScrollBox->ClearChildren();
+	}
+
+	if (LoadingThrobber)
+	{
+		LoadingThrobber->SetVisibility(ESlateVisibility::Visible);
+	}
+
+	ADBDTitlePlayerController* PC = GetOwningPlayer<ADBDTitlePlayerController>();
+	if (PC)
+	{
+		PC->FindSession();
+	}
+
+	if (RefreshButton)
+	{
+		RefreshButton->SetIsEnabled(false);
+	}
+}
+
 void UDBDTitleUserWidget::OnFindSessionsComplete(const TArray<FBlueprintSessionResult>& SessionResults)
 {
 	if (!SessionSlotClass || !SessionListScrollBox || !SessionListPopup)
 	{
 		return;
 	}
+	// If player closed SessionListPopup
+	if (!SessionListPopup->IsVisible())
+	{
+		return;
+	}
 
-	SessionListPopup->SetVisibility(ESlateVisibility::Visible);
+	if (LoadingThrobber)
+	{
+		LoadingThrobber->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	if (SessionListScrollBox)
+	{
+		SessionListScrollBox->ClearChildren();
+	}
 
 	for (const FBlueprintSessionResult& Result : SessionResults)
 	{
@@ -108,6 +161,11 @@ void UDBDTitleUserWidget::OnFindSessionsComplete(const TArray<FBlueprintSessionR
 			
 			SessionListScrollBox->AddChild(NewSlot);
 		}
+	}
+
+	if (RefreshButton)
+	{
+		RefreshButton->SetIsEnabled(true);
 	}
 }
 

@@ -9,6 +9,7 @@
 #include "GameFramework/PlayerState.h"
 #include "DBDLobbyPlayerController.h"
 #include "DBDLobbyPlayerState.h"
+#include "DBDLobbyInfoSlotUserWidget.h"
 #include "DBDLobbyGameModeBase.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -33,7 +34,7 @@ void UDBDLobbyUserWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaT
 	UpdateButtonState();
 
 	PlayerListUpdateTimeer += InDeltaTime;
-	if (PlayerListUpdateTimeer >= 0.5f)
+	if (PlayerListUpdateTimeer >= 2.0f)
 	{
 		PlayerListUpdateTimeer = 0.0f;
 		UpdatePlayerLists();
@@ -142,14 +143,18 @@ void UDBDLobbyUserWidget::UpdatePlayerLists()
 			ADBDLobbyPlayerState* LobbyPS = Cast<ADBDLobbyPlayerState>(PS);
 			if (LobbyPS)
 			{
-				UUserWidget* NewSlot = CreateWidget<UUserWidget>(this, UserSlotClass);
-				if (LobbyPS->bIsKiller)
+				UDBDLobbyInfoSlotUserWidget* NewSlot = CreateWidget<UDBDLobbyInfoSlotUserWidget>(this, UserSlotClass);
+				if (NewSlot)
 				{
-					KillerScrollBox->AddChild(NewSlot);
-				}
-				else
-				{
-					SurvivorScrollBox->AddChild(NewSlot);
+					NewSlot->Setup(LobbyPS);
+					if (LobbyPS->bIsKiller)
+					{
+						KillerScrollBox->AddChild(NewSlot);
+					}
+					else
+					{
+						SurvivorScrollBox->AddChild(NewSlot);
+					}
 				}
 			}
 		}

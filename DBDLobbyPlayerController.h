@@ -32,4 +32,9 @@ public:
 	void ToggleReadyState();
 	UFUNCTION(Client, Reliable)
 	void Client_ReturnToTitle();
+
+protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "User Widget")
+	TSubclassOf<UUserWidget> LobbyUserWidgetClass;
+	UUserWidget* LobbyUserWidget;
 };

@@ -9,6 +9,7 @@
 
 class UButton;
 class UScrollBox;
+class UCircularThrobber;
 /**
  * 
  */
@@ -19,21 +20,26 @@ class DBDCOPY_API UDBDTitleUserWidget : public UUserWidget
 	
 public:
 	virtual bool Initialize() override;
+	virtual void NativeConstruct() override;
 
 protected:
 	// Bind widget
 	UPROPERTY(meta = (BindWidget))
 	class UButton* QuitButton;
 	UPROPERTY(meta = (BindWidget))
-	class UButton* KillerButton;
+	UButton* KillerButton;
 	UPROPERTY(meta = (BindWidget))
-	class UButton* SurvivorButton;
+	UButton* SurvivorButton;
 	UPROPERTY(meta = (BindWidget))
-	class UScrollBox* SessionListScrollBox;
+	UScrollBox* SessionListScrollBox;
 	UPROPERTY(meta = (BindWidget))
 	class UWidget* SessionListPopup;
 	UPROPERTY(meta = (BindWidget))
-	class UButton* BackButton;
+	UButton* BackButton;
+	UPROPERTY(meta = (BindWidget))
+	UButton* RefreshButton;
+	UPROPERTY(meta = (BindWidget))
+	UCircularThrobber* LoadingThrobber;
 
 	// Slot widget class
 	UPROPERTY(EditAnywhere, Category = "UI")
@@ -49,6 +55,8 @@ private:
 	void OnSurvivorButtonClicked();
 	UFUNCTION()
 	void OnBackButtonClicked();
+	UFUNCTION()
+	void OnRefreshButtonClicked();
 
 	UFUNCTION()
 	void OnFindSessionsComplete(const TArray<FBlueprintSessionResult>& SessionResults);

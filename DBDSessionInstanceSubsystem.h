@@ -31,6 +31,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void JoinSession(const FBlueprintSessionResult& SessionResult);
 
+	IOnlineSessionPtr GetSessionInterface();
+
 	UPROPERTY(BlueprintAssignable)
 	FOnCreateSessionCompleteEvent OnCreateSessionCompleteEvent;
 	UPROPERTY(BlueprintAssignable)
@@ -39,7 +41,6 @@ public:
 	FOnJoinSessionCompleteEvent OnJoinSessionCompleteEvent;
 
 protected:
-	IOnlineSessionPtr GetSessionInterface();
 
 	void OnCreatedSessionComplete(FName SessionName, bool bWasSuccessful);
 	void OnFindSessionComplete(bool bWasSuccessful);
@@ -47,4 +48,7 @@ protected:
 
 private:
 	TSharedPtr<FOnlineSessionSearch> LastSessionSearch;
+	FDelegateHandle CreateSessionDelegatehandle;
+	FDelegateHandle FindSessionDelegatehandle;
+	FDelegateHandle JoinSessionDelegatehandle;
 };
