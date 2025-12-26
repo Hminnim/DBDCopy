@@ -30,4 +30,5 @@ public:
 	FOnPlayerStateChanged OnIsReadyChanged;
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void CopyProperties(class APlayerState* PlayerState) override;
 };

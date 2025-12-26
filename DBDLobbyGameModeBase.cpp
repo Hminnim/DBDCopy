@@ -4,6 +4,7 @@
 #include "DBDLobbyGameModeBase.h"
 #include "DBDLobbyPlayerState.h"
 #include "DBDLobbyPlayerController.h"
+#include "DBDGameInstance.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
@@ -110,6 +111,12 @@ void ADBDLobbyGameModeBase::KickAllAndDestroySession()
 
 void ADBDLobbyGameModeBase::StartServerTravel()
 {
+	UDBDGameInstance* GI = GetGameInstance<UDBDGameInstance>();
+	if (GI)
+	{
+		GI->PlayersCount = GetNumPlayers();
+	}
+
 	UWorld* World = GetWorld();
 	if (World)
 	{

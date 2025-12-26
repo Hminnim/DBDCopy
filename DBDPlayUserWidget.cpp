@@ -2,16 +2,20 @@
 
 
 #include "DBDPlayUserWidget.h"
+#include "Components/ProgressBar.h"
+#include "Components/TextBlock.h"
+#include "Components/VerticalBox.h"
+#include "GameFramework/GameStateBase.h"
+#include "DBDPlayerStateUserWidget.h"
+#include "DBDMainPlayerState.h"
 
-bool UDBDPlayUserWidget::Initialize()
+void UDBDPlayUserWidget::NativeConstruct()
 {
-	Super::Initialize();
+	Super::NativeConstruct();
 
 	InteractionProgressBar->SetVisibility(ESlateVisibility::Hidden);
 	InteractionTextBlock->SetVisibility(ESlateVisibility::Hidden);
 	ActionTextBlock->SetVisibility(ESlateVisibility::Hidden);
-
-	return true;
 }
 
 void UDBDPlayUserWidget::ShowInteractionMessage(FString Message)
@@ -45,4 +49,30 @@ void UDBDPlayUserWidget::ShowActionMessage(FString Message)
 void UDBDPlayUserWidget::HideActionMessage()
 {
 	ActionTextBlock->SetVisibility(ESlateVisibility::Hidden);
+}
+
+void UDBDPlayUserWidget::SetPlayerList()
+{
+	AGameStateBase* GS = GetWorld()->GetGameState();
+	if (GS)
+	{
+		for (APlayerState* PS : GS->PlayerArray)
+		{
+			ADBDMainPlayerState* MainPS = Cast<ADBDMainPlayerState>(PS);
+			if (MainPS)
+			{
+				if (MainPS->bIsKiller)
+				{
+					continue;
+				}
+
+				UDBDPlayerStateUserWidget* NewPlayerStateWidget = CreateWidget<UDBDPlayerStateUserWidget>(this, PlayerStateWidgetClass);
+				if (NewPlayerStateWidget)
+				{
+					NewPlayerStateWidget->SetUpPlayerState(PS->GetPlayerName());
+					PlayersVerticalBox->AddChild(NewPlayerStateWidget);
+				}
+			}
+		}
+	}
 }

@@ -8,6 +8,7 @@
 #include "TimerManager.h"
 #include "DBDPlayUserWidget.h"
 #include "DBDSkillCheckUserWidget.h"
+#include "DBDLoadingUserWidget.h"
 #include "DBDGameModeBase.h"
 #include "Kismet/GameplayStatics.h"
 #include "DBDPlayerController.generated.h"
@@ -25,33 +26,43 @@ class DBDCOPY_API ADBDPlayerController : public APlayerController
 public:
 	virtual void BeginPlay() override;
 
+	// For Loading
+	UFUNCTION(Server, Reliable)
+	void Server_NotifyLoaded();
+	UFUNCTION(Client, Reliable)
+	void Client_StartGame();
+
+	// Interaction Message
 	void ShowIneractionMessage(FString Message);
 	void HideInteractionMessage();
 	void ShowInteractionProgress(float Value);
 	void HideInteractionProgress();
-
+	// Action Message
 	void ShowActionMessage(FString Message);
 	void HideActionMessage();
 	void ShowSkillCheck();
 	void HideSkillCheck();
 
+	// Skill Checks
+	// Generator
 	UFUNCTION()
 	void StartGeneratorSkillCheck();
 	void GeneratorSkillcheck();
 	void StopGeneratorSkillCheck();
 	int8 GetGeneratorSkillCheckResult();
-
+	// Wiggle
 	void StartWiggleSkillCheck();
 	void WiggleSkillCheck();
 	void StopWiggleSkillCheck();
 	int8 GetWWiggleSkillCheckResult();
 	bool GetWiggleSkillCheckMiss();
-
+	// Struggle
 	void StartStruggleSkillCheck(int8 Count);
 	void StruggleSkillCheck();
 	void StopStruggleSkillCheck();
 	int8 GetStruggleSkillCheckResult();
 
+	// For Debug
 	UFUNCTION(Server, Reliable)
 	void CharacterChange(bool bIsKiller);
 
@@ -68,6 +79,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<UDBDSkillCheckUserWidget> SkillCheckWidgetClass;
 	class UDBDSkillCheckUserWidget* SkillCheckWidget;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UDBDLoadingUserWidget> LoadingWidgetClass;
+	class UDBDLoadingUserWidget* LoadingWidget;
 
 private:
 	FTimerHandle SkillCheckTimerHandle;

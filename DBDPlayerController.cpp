@@ -3,6 +3,7 @@
 
 #include "DBDPlayerController.h"
 
+
 void ADBDPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
@@ -10,6 +11,36 @@ void ADBDPlayerController::BeginPlay()
 	if (!IsLocalController())
 	{
 		return;
+	}
+
+	if (IsLocalController() && LoadingWidgetClass)
+	{
+		LoadingWidget = CreateWidget<UDBDLoadingUserWidget>(this, LoadingWidgetClass);
+		if (LoadingWidget)
+		{
+			LoadingWidget->AddToViewport(999);
+		}
+
+		SetInputMode(FInputModeUIOnly());
+		Server_NotifyLoaded();
+	}
+}
+
+void ADBDPlayerController::Server_NotifyLoaded_Implementation()
+{
+	ADBDGameModeBase* GM = GetWorld()->GetAuthGameMode<ADBDGameModeBase>();
+	if (GM)
+	{
+		GM->HandlePlayerLoaded(this);
+	}
+}
+
+void ADBDPlayerController::Client_StartGame_Implementation()
+{
+	if (LoadingWidget)
+	{
+		LoadingWidget->RemoveFromParent();
+		LoadingWidget = nullptr;
 	}
 
 	// Widget class setting

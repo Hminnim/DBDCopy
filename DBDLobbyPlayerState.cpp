@@ -2,6 +2,7 @@
 
 
 #include "DBDLobbyPlayerState.h"
+#include "DBDMainPlayerState.h"
 #include "Net/UnrealNetwork.h"
 
 void ADBDLobbyPlayerState::OnRep_IsReady()
@@ -15,4 +16,15 @@ void ADBDLobbyPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 
 	DOREPLIFETIME(ADBDLobbyPlayerState, bIsReady);
 	DOREPLIFETIME(ADBDLobbyPlayerState, bIsKiller);
+}
+
+void ADBDLobbyPlayerState::CopyProperties(APlayerState* PlayerState)
+{
+	Super::CopyProperties(PlayerState);
+
+	ADBDMainPlayerState* NewState = Cast<ADBDMainPlayerState>(PlayerState);
+	if (NewState)
+	{
+		NewState->bIsKiller = bIsKiller;
+	}
 }

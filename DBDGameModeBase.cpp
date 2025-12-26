@@ -2,6 +2,9 @@
 
 
 #include "DBDGameModeBase.h"
+#include "DBDMainPlayerState.h"
+#include "DBDGameInstance.h"
+#include "DBDPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "DBDObjectSpawnManager.h"
 
@@ -21,19 +24,52 @@ void ADBDGameModeBase::BeginPlay()
 	}
 }
 
-void ADBDGameModeBase::PostLogin(APlayerController* NewPlayer)
+void ADBDGameModeBase::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
 {
-	Super::PostLogin(NewPlayer);
+	Super::InitGame(MapName, Options, ErrorMessage);
 
-	UDBDGameInstance* GI = Cast<UDBDGameInstance>(GetGameInstance());
+
+	UDBDGameInstance* GI = GetGameInstance<UDBDGameInstance>();
 	if (GI)
 	{
+		ExpectedPlayers = GI->PlayersCount;
+	}
+}
+
+void ADBDGameModeBase::HandlePlayerLoaded(APlayerController* PC)
+{
+	CurrentLoadedPlayers++;
+
+	if (CurrentLoadedPlayers >= ExpectedPlayers)
+	{
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			ADBDPlayerController* MyPC = Cast<ADBDPlayerController>(It->Get());
+			if (MyPC)
+			{
+				MyPC->Client_StartGame();
+			}
+		}
+	}
+}
+
+void ADBDGameModeBase::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
+{
+	Super::HandleStartingNewPlayer_Implementation(NewPlayer);
+
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("HandleStartingNewPlayer_Implementation")));
+
+	ADBDMainPlayerState* PS = NewPlayer->GetPlayerState<ADBDMainPlayerState>();
+	if (PS)
+	{
 		// Choose player character class from GameInstance
-		TSubclassOf<APawn> ChosenClass = GI->bIsKiller
+		TSubclassOf<APawn> ChosenClass = PS->bIsKiller
 			? KillerCharacterClass
 			: SurvivorCharacterClass;
 
-		// Spawn player character
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("bIsKiller : %d"), PS->bIsKiller));
+
+		// Spawn player characterz
 		FTransform SpawnTransfrom = FindPlayerStart(NewPlayer)->GetActorTransform();
 
 		APawn* NewPawn = GetWorld()->SpawnActor<APawn>(ChosenClass, SpawnTransfrom);
@@ -41,6 +77,10 @@ void ADBDGameModeBase::PostLogin(APlayerController* NewPlayer)
 		{
 			NewPlayer->Possess(NewPawn);
 		}
+	}
+	else
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Can't find GameInstance")));
 	}
 }
 

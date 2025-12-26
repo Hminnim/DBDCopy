@@ -4,20 +4,22 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Components/ProgressBar.h"
-#include "Components/TextBlock.h"
 #include "DBDPlayUserWidget.generated.h"
 
 /**
  * 
  */
+class UProgressBar;
+class UTextBlock;
+class UVerticalBox;
+
 UCLASS()
 class DBDCOPY_API UDBDPlayUserWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	
 public:
-	virtual bool Initialize() override;
+	virtual void NativeConstruct() override;
 
 	void ShowInteractionMessage(FString Message);
 	void HideInteractionMessge();
@@ -29,9 +31,17 @@ public:
 protected:
 	// Bind widget
 	UPROPERTY(meta = (BindWidget))
-	class UProgressBar* InteractionProgressBar;
+	UProgressBar* InteractionProgressBar;
 	UPROPERTY(meta = (BindWidget))
-	class UTextBlock* InteractionTextBlock;
+	UTextBlock* InteractionTextBlock;
 	UPROPERTY(meta = (BindWidget))
-	class UTextBlock* ActionTextBlock;
+	UTextBlock* ActionTextBlock;
+	UPROPERTY(meta = (BindWidget))
+	UVerticalBox* PlayersVerticalBox;
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UUserWidget> PlayerStateWidgetClass;
+
+private:
+	void SetPlayerList();
 };
