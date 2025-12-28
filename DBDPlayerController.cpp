@@ -35,7 +35,7 @@ void ADBDPlayerController::Server_NotifyLoaded_Implementation()
 	}
 }
 
-void ADBDPlayerController::Client_StartGame_Implementation()
+void ADBDPlayerController::Client_StartGame_Implementation(int32 GeneratorNum)
 {
 	if (LoadingWidget)
 	{
@@ -49,6 +49,8 @@ void ADBDPlayerController::Client_StartGame_Implementation()
 		PlayUserWidget = CreateWidget<UDBDPlayUserWidget>(this, PlayUserWidgetClass);
 		if (PlayUserWidget)
 		{
+			PlayUserWidget->SetPlayerList();
+			PlayUserWidget->SetReaminGenerator(GeneratorNum);
 			PlayUserWidget->AddToViewport(0);
 		}
 	}
@@ -433,6 +435,14 @@ int8 ADBDPlayerController::GetStruggleSkillCheckResult()
 		return int8(2);
 	}
 	
+}
+
+void ADBDPlayerController::ChangeRemainedGeneratorNum(int32 NewNum)
+{
+	if (PlayUserWidget)
+	{
+		PlayUserWidget->SetReaminGenerator(NewNum);
+	}
 }
 
 void ADBDPlayerController::CharacterChange_Implementation(bool bIsKiller)

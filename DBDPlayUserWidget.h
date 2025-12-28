@@ -27,6 +27,8 @@ public:
 	void HideInteractionProgress();
 	void ShowActionMessage(FString Message);
 	void HideActionMessage();
+	void SetPlayerList();
+	void SetReaminGenerator(int32 GeneratorNum);
 
 protected:
 	// Bind widget
@@ -38,10 +40,11 @@ protected:
 	UTextBlock* ActionTextBlock;
 	UPROPERTY(meta = (BindWidget))
 	UVerticalBox* PlayersVerticalBox;
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* RemainGenerator;
 
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSubclassOf<class UUserWidget> PlayerStateWidgetClass;
 
 private:
-	void SetPlayerList();
 };

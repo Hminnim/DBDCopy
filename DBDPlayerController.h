@@ -30,7 +30,7 @@ public:
 	UFUNCTION(Server, Reliable)
 	void Server_NotifyLoaded();
 	UFUNCTION(Client, Reliable)
-	void Client_StartGame();
+	void Client_StartGame(int32 GeneratorNum);
 
 	// Interaction Message
 	void ShowIneractionMessage(FString Message);
@@ -61,6 +61,8 @@ public:
 	void StruggleSkillCheck();
 	void StopStruggleSkillCheck();
 	int8 GetStruggleSkillCheckResult();
+
+	void ChangeRemainedGeneratorNum(int32 NewNum);
 
 	// For Debug
 	UFUNCTION(Server, Reliable)

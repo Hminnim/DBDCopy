@@ -9,28 +9,13 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputLibrary.h"
-#include "Kismet/GameplayStatics.h"
-#include "Camera/CameraComponent.h"
-#include "Components/CapsuleComponent.h"
-#include "Components/AudioComponent.h"
-#include "Animation/AnimMontage.h"
-#include "Animation/AnimInstance.h"
 #include "DBDGeneratorActor.h"
 #include "DBDWindowActor.h"
 #include "DBDPlayerController.h" 
 #include "DBDPalletActor.h"
 #include "DBDHookActor.h"
+#include "DBDMainPlayerState.h"
 #include "DBDSurvivor.generated.h"
-
-UENUM(BlueprintType)
-enum class EHealthState : uint8
-{
-	Healthy		UMETA(DisplayName = "Healthy"),
-	Injured		UMETA(DisplayName = "Injured"),
-	DeepWound	UMETA(DisplayName = "DeepWound"),
-	Carried		UMETA(DisplayName = "Carried"),
-	Hooked		UMETA(DisplayName = "Hooked")
-};
 
 UENUM()
 enum class ESurvivorInteraction
@@ -42,6 +27,9 @@ enum class ESurvivorInteraction
 };
 
 class ADBDKiller;
+class UCameraComponent;
+class UCapsuleComponent;
+class UAudioComponent;
 
 UCLASS()
 class DBDCOPY_API ADBDSurvivor : public ACharacter
@@ -106,7 +94,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* SuccessSelfUnhookAnim;
 
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadOnly, Category = "HealthState")
+	UPROPERTY(BlueprintReadOnly, Category = "HealthState")
 	EHealthState CurrentHealthStateEnum = EHealthState::Healthy;
 
 	// Blood Decal
@@ -168,6 +156,7 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+	virtual void PossessedBy(AController* NewController) override;
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -375,6 +364,12 @@ private:
 
 	// Terror radius
 	void PlayTrerrorRadiusSound();
+
+	// Managing HealthState
+	void InitPlayerState();
+	virtual void OnRep_PlayerState() override;
+	UFUNCTION()
+	void UpdateLocalHealthState(EHealthState NewState);
 
 	// Values
 	ADBDWindowActor* CurrentWindow;

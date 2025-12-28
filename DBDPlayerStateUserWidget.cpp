@@ -16,18 +16,27 @@ void UDBDPlayerStateUserWidget::SetUpPlayerState(FString PlayerName)
 	PlayerNameText->SetText(FText::FromString(PlayerName));
 }
 
-void UDBDPlayerStateUserWidget::ChangeHealthStateImage(int8 Type)
+void UDBDPlayerStateUserWidget::ChangeHealthStateImage(EHealthState NewState)
 {
 	UTexture2D* NewTexture = HealthyTexture;
 
-	if (Type == 0) NewTexture = HealthyTexture;
-	if (Type == 1) NewTexture = InjuredTexture;
-	if (Type == 2) NewTexture = CrawlTexture;
-	if (Type == 3) NewTexture = CarryingTexture;
-	if (Type == 4) NewTexture = HookedTexture;
-	if (Type == 5) NewTexture = DeathTexture;
-	if (Type == 6) NewTexture = ExitTexture;
+	if (NewState == EHealthState::Healthy) NewTexture = HealthyTexture;
+	if (NewState == EHealthState::Injured) NewTexture = InjuredTexture;
+	if (NewState == EHealthState::DeepWound) NewTexture = CrawlTexture;
+	if (NewState == EHealthState::Carried) NewTexture = CarryingTexture;
+	if (NewState == EHealthState::Hooked) NewTexture = HookedTexture;
+	if (NewState == EHealthState::Death) NewTexture = DeathTexture;
+	if (NewState == EHealthState::Exit) NewTexture = ExitTexture;
 
 	CurrentHealthStateImage->SetBrushFromTexture(NewTexture);
+}
+
+void UDBDPlayerStateUserWidget::Setup(ADBDMainPlayerState* InPlayerState)
+{
+	if (InPlayerState)
+	{
+		PlayerStatePtr = InPlayerState;
+		PlayerStatePtr->OnHealthStateChanged.AddDynamic(this, &UDBDPlayerStateUserWidget::ChangeHealthStateImage);
+	}
 }
 

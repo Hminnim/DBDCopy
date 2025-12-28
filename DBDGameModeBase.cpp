@@ -33,6 +33,7 @@ void ADBDGameModeBase::InitGame(const FString& MapName, const FString& Options, 
 	if (GI)
 	{
 		ExpectedPlayers = GI->PlayersCount;
+		RemainGnerators = GoalGeneratorNums[ExpectedPlayers];
 	}
 }
 
@@ -47,7 +48,7 @@ void ADBDGameModeBase::HandlePlayerLoaded(APlayerController* PC)
 			ADBDPlayerController* MyPC = Cast<ADBDPlayerController>(It->Get());
 			if (MyPC)
 			{
-				MyPC->Client_StartGame();
+				MyPC->Client_StartGame(RemainGnerators);
 			}
 		}
 	}
@@ -56,8 +57,6 @@ void ADBDGameModeBase::HandlePlayerLoaded(APlayerController* PC)
 void ADBDGameModeBase::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
 {
 	Super::HandleStartingNewPlayer_Implementation(NewPlayer);
-
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("HandleStartingNewPlayer_Implementation")));
 
 	ADBDMainPlayerState* PS = NewPlayer->GetPlayerState<ADBDMainPlayerState>();
 	if (PS)
@@ -104,5 +103,19 @@ void ADBDGameModeBase::ChangeCharacter(APlayerController* PlayerController, bool
 	if (NewPawn)
 	{
 		PlayerController->Possess(NewPawn);
+	}
+}
+
+void ADBDGameModeBase::OnGeneratorCompleted()
+{
+	RemainGnerators--;
+
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		ADBDPlayerController* MyPC = Cast<ADBDPlayerController>(It->Get());
+		if (MyPC)
+		{
+			MyPC->ChangeRemainedGeneratorNum(RemainGnerators);
+		}
 	}
 }

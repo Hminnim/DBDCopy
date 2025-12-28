@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "DBDMainPlayerState.h"
 #include "DBDPlayerStateUserWidget.generated.h"
 
 /**
@@ -20,7 +21,9 @@ class DBDCOPY_API UDBDPlayerStateUserWidget : public UUserWidget
 public:
 	virtual void NativeConstruct() override;
 	void SetUpPlayerState(FString PlaayerName);
-	void ChangeHealthStateImage(int8 Type);
+	UFUNCTION()
+	void ChangeHealthStateImage(EHealthState NewState);
+	void Setup(ADBDMainPlayerState* InPlayerState);
 
 protected:
 	UPROPERTY(meta = (BindWidget))
@@ -43,4 +46,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "HUD Sprite")
 	UTexture2D* ExitTexture;
 
+private:
+	UPROPERTY()
+	TObjectPtr<ADBDMainPlayerState> PlayerStatePtr;
 };

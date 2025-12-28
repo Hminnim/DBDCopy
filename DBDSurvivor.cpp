@@ -3,6 +3,12 @@
 
 #include "DBDSurvivor.h"
 #include "DBDKiller.h"
+#include "Kismet/GameplayStatics.h"
+#include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/AudioComponent.h"
+#include "Animation/AnimMontage.h"
+#include "Animation/AnimInstance.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/Engine.h"
 
@@ -137,7 +143,11 @@ void ADBDSurvivor::EndOverlapCharacterChange()
 
 void ADBDSurvivor::BeCarried()
 {
-	CurrentHealthStateEnum = EHealthState::Carried;
+	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
+	if (PS)
+	{
+		PS->SetHealthState(EHealthState::Carried);
+	}
 
 	SetActorEnableCollision(false);
 
@@ -160,7 +170,11 @@ void ADBDSurvivor::BeCarried()
 
 void ADBDSurvivor::StopBeCarried()
 {
-	CurrentHealthStateEnum = EHealthState::Injured;
+	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
+	if (PS)
+	{
+		PS->SetHealthState(EHealthState::Injured);
+	}
 	
 	SetActorEnableCollision(true);
 
@@ -175,7 +189,11 @@ void ADBDSurvivor::StopBeCarried()
 
 void ADBDSurvivor::BeHooked()
 {
-	CurrentHealthStateEnum = EHealthState::Hooked;
+	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
+	if (PS)
+	{
+		PS->SetHealthState(EHealthState::Hooked);
+	}
 
 	SetActorEnableCollision(true);
 
@@ -205,7 +223,11 @@ void ADBDSurvivor::BeHooked()
 
 void ADBDSurvivor::StopBeHooked()
 {
-	CurrentHealthStateEnum = EHealthState::Injured;
+	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
+	if (PS)
+	{
+		PS->SetHealthState(EHealthState::Injured);
+	}
 
 	SetActorEnableCollision(true);
 
@@ -277,6 +299,13 @@ void ADBDSurvivor::BeginPlay()
 	);
 }
 
+void ADBDSurvivor::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	InitPlayerState();
+}
+
 void ADBDSurvivor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -287,7 +316,6 @@ void ADBDSurvivor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	DOREPLIFETIME(ADBDSurvivor, bIsHealed);
 	DOREPLIFETIME(ADBDSurvivor, bIsWigglePause);
 	DOREPLIFETIME(ADBDSurvivor, CurrentHealedRate);
-	DOREPLIFETIME(ADBDSurvivor, CurrentHealthStateEnum);
 	DOREPLIFETIME(ADBDSurvivor, CurrentInteractionState);
 	DOREPLIFETIME(ADBDSurvivor, CurrentWiggleRate);
 }
@@ -998,12 +1026,12 @@ void ADBDSurvivor::HandleRepaiGenerator(float DeltaTime)
 		return;
 	}
 
-	if (CurrentGenerator->CurrentRepairRate >= 100.0f)
+	/*if (CurrentGenerator->CurrentRepairRate >= 100.0f)
 	{
 		CurrentGenerator->bIsRepaired = true;
 		StopRepairGenerator();
 		Server_StopRepairGenerator();
-	}
+	}*/
 }
 
 void ADBDSurvivor::Server_UpdateGeneratorRepairRate_Implementation(float Amount)
@@ -1012,6 +1040,11 @@ void ADBDSurvivor::Server_UpdateGeneratorRepairRate_Implementation(float Amount)
 
 	if (CurrentGenerator->CurrentRepairRate >= 100.0f)
 	{
+		ADBDGameModeBase* MainGM = GetWorld()->GetAuthGameMode<ADBDGameModeBase>();
+		if(MainGM)
+		{
+			MainGM->OnGeneratorCompleted();
+		}
 		CurrentGenerator->bIsRepaired = true;
 		StopRepairGenerator();
 		Server_StopRepairGenerator();
@@ -1061,6 +1094,18 @@ void ADBDSurvivor::Server_HandleRepairGenerator(float DeltaTIme)
 	}
 
 	CurrentGenerator->CurrentRepairRate += RepairSpeed[CurrentGenerator->CurrentRepairingSurvivor] * DeltaTIme;
+
+	if (CurrentGenerator->CurrentRepairRate >= 100.0f)
+	{
+		ADBDGameModeBase* MainGM = GetWorld()->GetAuthGameMode<ADBDGameModeBase>();
+		if (MainGM)
+		{
+			MainGM->OnGeneratorCompleted();
+		}
+		CurrentGenerator->bIsRepaired = true;
+		StopRepairGenerator();
+		Server_StopRepairGenerator();
+	}
 }
 
 void ADBDSurvivor::StartGeneratorSkillCheck()
@@ -1418,13 +1463,21 @@ void ADBDSurvivor::HandleHealed()
 	{
 		if (CurrentHealthStateEnum == EHealthState::Injured)
 		{
-			CurrentHealthStateEnum = EHealthState::Healthy;
+			ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
+			if (PS)
+			{
+				PS->SetHealthState(EHealthState::Healthy);
+			}
 			CurrentHealedRate = 0.0f;
 			UpdateMovementSpeed();
 		}
 		if (CurrentHealthStateEnum == EHealthState::DeepWound)
 		{
-			CurrentHealthStateEnum = EHealthState::Injured;
+			ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
+			if (PS)
+			{
+				PS->SetHealthState(EHealthState::Injured);
+			}
 			CurrentHealedRate = 0.0f;
 			UpdateMovementSpeed();
 		}
@@ -1646,11 +1699,19 @@ void ADBDSurvivor::Server_TakeDamage_Implementation()
 {
 	if (CurrentHealthStateEnum == EHealthState::Healthy)
 	{
-		CurrentHealthStateEnum = EHealthState::Injured;
+		ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
+		if (PS)
+		{
+			PS->SetHealthState(EHealthState::Injured);
+		}
 	}
 	else if (CurrentHealthStateEnum == EHealthState::Injured)
 	{
-		CurrentHealthStateEnum = EHealthState::DeepWound;
+		ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
+		if (PS)
+		{
+			PS->SetHealthState(EHealthState::DeepWound);
+		}
 	}
 }
 
@@ -1955,4 +2016,26 @@ void ADBDSurvivor::PlayTrerrorRadiusSound()
 		HeartBeatSound->SetPitchMultiplier(1.0f + FearFactor);
 	}
 
+}
+
+void ADBDSurvivor::InitPlayerState()
+{
+	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
+	if (PS)
+	{
+		PS->OnHealthStateChanged.AddDynamic(this, &ADBDSurvivor::UpdateLocalHealthState);
+		UpdateLocalHealthState(PS->GetCurrentHealthState());
+	}
+}
+
+void ADBDSurvivor::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+
+	InitPlayerState();
+}
+
+void ADBDSurvivor::UpdateLocalHealthState(EHealthState NewState)
+{
+	CurrentHealthStateEnum = NewState;
 }

@@ -70,9 +70,15 @@ void UDBDPlayUserWidget::SetPlayerList()
 				if (NewPlayerStateWidget)
 				{
 					NewPlayerStateWidget->SetUpPlayerState(PS->GetPlayerName());
+					NewPlayerStateWidget->Setup(MainPS);
 					PlayersVerticalBox->AddChild(NewPlayerStateWidget);
 				}
 			}
 		}
 	}
+}
+
+void UDBDPlayUserWidget::SetReaminGenerator(int32 GeneratorNum)
+{
+	RemainGenerator->SetText(FText::AsNumber(GeneratorNum));
 }

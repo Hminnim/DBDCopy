@@ -22,6 +22,7 @@ public:
 	void HandlePlayerLoaded(APlayerController* PC);
 	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
 	void ChangeCharacter(APlayerController* PlayerController, bool bIsKiller);
+	void OnGeneratorCompleted();
 
 	// Character class
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character class")
