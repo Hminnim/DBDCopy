@@ -29,4 +29,6 @@ void ADBDMainPlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 
 	DOREPLIFETIME(ADBDMainPlayerState, bIsKiller);
 	DOREPLIFETIME(ADBDMainPlayerState, CurrentHealthState);
+	DOREPLIFETIME(ADBDMainPlayerState, CurrentHookStageRate);
+	DOREPLIFETIME(ADBDMainPlayerState, CurrentHookStageType);
 }

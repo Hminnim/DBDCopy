@@ -2,7 +2,9 @@
 
 
 #include "DBDPlayerController.h"
-
+#include "DBDGameOverUserWidget.h"
+#include "DBDMainPlayerState.h"
+#include "DBDSessionInstanceSubsystem.h"
 
 void ADBDPlayerController::BeginPlay()
 {
@@ -66,6 +68,53 @@ void ADBDPlayerController::Client_StartGame_Implementation(int32 GeneratorNum)
 
 	SetInputMode(FInputModeGameOnly());
 	bShowMouseCursor = false;
+}
+
+void ADBDPlayerController::Client_NotifyGameResult_Implementation(bool bEscaped, int32 KilledSurvivor)
+{
+	if (GameOverWidgetClass)
+	{
+		GameOverWidget = CreateWidget<UDBDGameOverUserWidget>(this, GameOverWidgetClass);
+		if (GameOverWidget)
+		{
+			ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
+			if (PS)
+			{
+				if (PS->bIsKiller)
+				{
+					GameOverWidget->KillerGameOver(KilledSurvivor);
+				}
+				else
+				{
+					GameOverWidget->SurvivorGameOver(bEscaped);
+				}
+			}
+
+			GameOverWidget->AddToViewport(999);
+		}
+	}
+
+	SetInputMode(FInputModeUIOnly());
+	bShowMouseCursor = true;
+}
+
+void ADBDPlayerController::LeaveGame()
+{
+	UGameInstance* GI = GetGameInstance();
+	if (GI)
+	{
+		UDBDSessionInstanceSubsystem* Subsystem = GI->GetSubsystem<UDBDSessionInstanceSubsystem>();
+		if (Subsystem)
+		{
+			const IOnlineSessionPtr SessionInterface = Subsystem->GetSessionInterface();
+			if (SessionInterface)
+			{
+				SessionInterface->DestroySession(NAME_GameSession);
+			}
+		}
+	}
+
+	UGameplayStatics::OpenLevel(this, FName("TitleMenu"));
 }
 
 void ADBDPlayerController::ShowIneractionMessage(FString Message)

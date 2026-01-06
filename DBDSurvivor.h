@@ -23,10 +23,12 @@ enum class ESurvivorInteraction
 	Idle,
 	Repair,
 	Heal,
-	UnHook
+	UnHook,
+	Lever
 };
 
 class ADBDKiller;
+class ADBDGateLeverSwitchActor;
 class UCameraComponent;
 class UCapsuleComponent;
 class UAudioComponent;
@@ -68,6 +70,7 @@ public:
 	bool bIsWigglePause = false;
 	bool bIsSelfUnhooking = false;
 	bool bIsStruggling = false;
+	bool bIsOpeningGate = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* VaultSlowAnim;
@@ -277,7 +280,8 @@ private:
 	void StartStruggleSkillCheck();
 	void StopStruggleSkillCheck();
 	void FailedStruggleSkillCheck();
-	void HandleStruggleSkillCheck(int8 Type);
+	UFUNCTION(Server, Reliable)
+	void Server_HandleStruggleSkillCheck(int8 Type);
 
 	// Wiggle
 	void HandleWiggleRate(float DeltaTime);
@@ -345,6 +349,7 @@ private:
 	int8 StruggleSkillCheckCount = int8(0);
 	float CurrentHookStageRate = 100.0f;
 	void HandleHookStageRate(float DeltaTime);
+	void Server_HandleHookStageRate(float DeltaTime);
 	void StartStruggleStage();
 	void SetStruggleStage();
 	void StopStruggleStage();
@@ -371,10 +376,34 @@ private:
 	UFUNCTION()
 	void UpdateLocalHealthState(EHealthState NewState);
 
+	// Gameover
+	UFUNCTION(Server, Reliable)
+	void Server_SurvivorEscape();
+	UFUNCTION(Server, Reliable)
+	void Server_SurvivorDeath();
+
+	// Opening gate
+	void StartOpeningGate();
+	void StopOpeningGate();
+	void HandleOpeningGate();
+	void Server_HandleOpeningGate(float DeltaTime);
+	UFUNCTION(Server, Reliable)
+	void Server_SetCurrentLever(ADBDGateLeverSwitchActor* NewLever);
+	UFUNCTION(Server, Reliable)
+	void Server_StartOpeningGate();
+	UFUNCTION(Server, Reliable)
+	void Server_StopOpeningGate();
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_StartOpeningGate();
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_StopOpeningGate();
+
 	// Values
-	ADBDWindowActor* CurrentWindow;
-	ADBDPalletActor* CurrentPallet;
-	ADBDSurvivor* CurrentTargetSurvivor;
+	TObjectPtr<ADBDWindowActor> CurrentWindow;
+	TObjectPtr<ADBDPalletActor> CurrentPallet;
+	TObjectPtr<ADBDSurvivor> CurrentTargetSurvivor;
+	TObjectPtr<ADBDGateLeverSwitchActor> CurrentTargetLever;
+	TObjectPtr<ADBDMainPlayerState> OwnedPlayerState;
 	FTimerHandle SkillCheckTimer;
 	FTimerHandle SkillCheckTriggerTimer;
 	FTimerHandle VaultTimer;

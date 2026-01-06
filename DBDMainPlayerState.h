@@ -35,6 +35,10 @@ public:
 	FOnHealthStateChanged OnHealthStateChanged;
 	UPROPERTY(Replicated)
 	bool bIsKiller = false;
+	UPROPERTY(Replicated)
+	int8 CurrentHookStageType = int8(0);
+	UPROPERTY(Replicated)
+	float CurrentHookStageRate = 100.0f;
 
 	UFUNCTION()
 	void SetHealthState(EHealthState NewState);

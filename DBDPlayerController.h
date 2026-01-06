@@ -14,6 +14,7 @@
 #include "DBDPlayerController.generated.h"
 
 class USoundBase;
+class UDBDGameOverUserWidget;
 
 /**
  * 
@@ -26,11 +27,14 @@ class DBDCOPY_API ADBDPlayerController : public APlayerController
 public:
 	virtual void BeginPlay() override;
 
-	// For Loading
+	// For Multi
 	UFUNCTION(Server, Reliable)
 	void Server_NotifyLoaded();
 	UFUNCTION(Client, Reliable)
 	void Client_StartGame(int32 GeneratorNum);
+	UFUNCTION(Client, Reliable)
+	void Client_NotifyGameResult(bool bEscaped, int32 KilledSurvivor);
+	void LeaveGame();
 
 	// Interaction Message
 	void ShowIneractionMessage(FString Message);
@@ -84,6 +88,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<UDBDLoadingUserWidget> LoadingWidgetClass;
 	class UDBDLoadingUserWidget* LoadingWidget;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UDBDGameOverUserWidget> GameOverWidgetClass;
+	UDBDGameOverUserWidget* GameOverWidget;
 
 private:
 	FTimerHandle SkillCheckTimerHandle;

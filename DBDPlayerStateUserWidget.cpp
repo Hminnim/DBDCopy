@@ -4,10 +4,29 @@
 #include "DBDPlayerStateUserWidget.h"
 #include "Components/TextBlock.h"
 #include "Components/Image.h"
+#include "Components/ProgressBar.h"
 
 void UDBDPlayerStateUserWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+}
+
+void UDBDPlayerStateUserWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	if (HookStageRateProgressBar && PlayerStatePtr)
+	{
+		if (bIsHooked)
+		{
+			HookStageRateProgressBar->SetVisibility(ESlateVisibility::Visible);
+			HookStageRateProgressBar->SetPercent(PlayerStatePtr->CurrentHookStageRate / 100.0f);
+		}
+		else
+		{
+			HookStageRateProgressBar->SetVisibility(ESlateVisibility::Hidden);
+		}
+	}
 }
 
 void UDBDPlayerStateUserWidget::SetUpPlayerState(FString PlayerName)
@@ -24,7 +43,15 @@ void UDBDPlayerStateUserWidget::ChangeHealthStateImage(EHealthState NewState)
 	if (NewState == EHealthState::Injured) NewTexture = InjuredTexture;
 	if (NewState == EHealthState::DeepWound) NewTexture = CrawlTexture;
 	if (NewState == EHealthState::Carried) NewTexture = CarryingTexture;
-	if (NewState == EHealthState::Hooked) NewTexture = HookedTexture;
+	if (NewState == EHealthState::Hooked)
+	{
+		NewTexture = HookedTexture;
+		bIsHooked = true;
+	}
+	else
+	{
+		bIsHooked = false;
+	}
 	if (NewState == EHealthState::Death) NewTexture = DeathTexture;
 	if (NewState == EHealthState::Exit) NewTexture = ExitTexture;
 

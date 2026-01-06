@@ -33,6 +33,7 @@ void ADBDGameModeBase::InitGame(const FString& MapName, const FString& Options, 
 	if (GI)
 	{
 		ExpectedPlayers = GI->PlayersCount;
+		RemainSurvivors = ExpectedPlayers - 1;
 		RemainGnerators = GoalGeneratorNums[ExpectedPlayers];
 	}
 }
@@ -116,6 +117,46 @@ void ADBDGameModeBase::OnGeneratorCompleted()
 		if (MyPC)
 		{
 			MyPC->ChangeRemainedGeneratorNum(RemainGnerators);
+		}
+	}
+}
+
+void ADBDGameModeBase::OnSurvivorDied(APlayerController* SurvivorController)
+{
+	RemainSurvivors--;
+
+	ADBDPlayerController* PC = Cast<ADBDPlayerController>(SurvivorController);
+	if (PC)
+	{
+		PC->Client_NotifyGameResult(false, 0);
+	}
+
+	CheckGameOver();
+}
+
+void ADBDGameModeBase::OnSurvivorEscaped(APlayerController* SurvivorController)
+{
+	RemainSurvivors--;
+
+	ADBDPlayerController* PC = Cast<ADBDPlayerController>(SurvivorController);
+	if (PC)
+	{
+		PC->Client_NotifyGameResult(true, 0);
+	}
+
+	CheckGameOver();
+}
+
+void ADBDGameModeBase::CheckGameOver()
+{
+	if (RemainSurvivors <= 0)
+	{
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(It->Get()))
+			{
+				PC->Client_NotifyGameResult(false, ExpectedPlayers - RemainSurvivors - 1);
+			}
 		}
 	}
 }

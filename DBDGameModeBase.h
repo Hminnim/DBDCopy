@@ -9,6 +9,7 @@
 /**
  * 
  */
+
 UCLASS()
 class DBDCOPY_API ADBDGameModeBase : public AGameModeBase
 {
@@ -23,6 +24,9 @@ public:
 	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
 	void ChangeCharacter(APlayerController* PlayerController, bool bIsKiller);
 	void OnGeneratorCompleted();
+	void OnSurvivorDied(APlayerController* SurvivorController);
+	void OnSurvivorEscaped(APlayerController* SurvivorController);
+	void CheckGameOver();
 
 	// Character class
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character class")
@@ -35,5 +39,6 @@ protected:
 	int32 CurrentLoadedPlayers = 0;
 	const TArray<int32> GoalGeneratorNums = { 0,1,2,3,4,5 };
 	int32 RemainGnerators = 0;
+	int32 RemainSurvivors = 0;
 };
  

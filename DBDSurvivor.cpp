@@ -3,6 +3,7 @@
 
 #include "DBDSurvivor.h"
 #include "DBDKiller.h"
+#include "DBDGateLeverSwitchActor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -143,10 +144,9 @@ void ADBDSurvivor::EndOverlapCharacterChange()
 
 void ADBDSurvivor::BeCarried()
 {
-	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
-	if (PS)
+	if (OwnedPlayerState)
 	{
-		PS->SetHealthState(EHealthState::Carried);
+		OwnedPlayerState->SetHealthState(EHealthState::Carried);
 	}
 
 	SetActorEnableCollision(false);
@@ -170,10 +170,9 @@ void ADBDSurvivor::BeCarried()
 
 void ADBDSurvivor::StopBeCarried()
 {
-	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
-	if (PS)
+	if (OwnedPlayerState)
 	{
-		PS->SetHealthState(EHealthState::Injured);
+		OwnedPlayerState->SetHealthState(EHealthState::Injured);
 	}
 	
 	SetActorEnableCollision(true);
@@ -189,10 +188,9 @@ void ADBDSurvivor::StopBeCarried()
 
 void ADBDSurvivor::BeHooked()
 {
-	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
-	if (PS)
+	if (OwnedPlayerState)
 	{
-		PS->SetHealthState(EHealthState::Hooked);
+		OwnedPlayerState->SetHealthState(EHealthState::Hooked);
 	}
 
 	SetActorEnableCollision(true);
@@ -204,29 +202,34 @@ void ADBDSurvivor::BeHooked()
 	}
 
 	// Handdle hook stage
-	if (CurrentHookStageType == int8(0))
+	if (OwnedPlayerState)
 	{
-		CurrentHookStageType = int8(1);
-		CurrentHookStageRate = 100.0f;
-	}
-	else if (CurrentHookStageType == int8(1))
-	{
-		CurrentHookStageType = int8(2);
-		CurrentHookStageRate = 50.0f;
-		StartStruggleStage();
-	}
-	else if (CurrentHookStageType == int8(2))
-	{
-
+		if (OwnedPlayerState->CurrentHookStageType == int8(0))
+		{
+			OwnedPlayerState->CurrentHookStageType = int8(1);
+			OwnedPlayerState->CurrentHookStageRate = 100.0f;
+		}
+		else if (OwnedPlayerState->CurrentHookStageType == int8(1))
+		{
+			OwnedPlayerState->CurrentHookStageType = int8(2);
+			OwnedPlayerState->CurrentHookStageRate = 50.0f;
+			StartStruggleStage();
+		}
+		else if (OwnedPlayerState->CurrentHookStageType == int8(2))
+		{
+			if (HasAuthority())
+			{
+				Server_SurvivorDeath();
+			}
+		}
 	}
 }
 
 void ADBDSurvivor::StopBeHooked()
 {
-	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
-	if (PS)
+	if (OwnedPlayerState)
 	{
-		PS->SetHealthState(EHealthState::Injured);
+		OwnedPlayerState->SetHealthState(EHealthState::Injured);
 	}
 
 	SetActorEnableCollision(true);
@@ -333,7 +336,7 @@ void ADBDSurvivor::FindKillerActor()
 // Called every frame
 void ADBDSurvivor::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+	Super::Tick(DeltaTime);	
 
 	FindInteratable();
 
@@ -378,6 +381,7 @@ void ADBDSurvivor::Tick(float DeltaTime)
 	
 	HandleHealthState();
 	HandleHookStageRate(DeltaTime);
+	Server_HandleHookStageRate(DeltaTime);
 
 	// Wiggle
 	HandleWiggleSkillCheckMiss();
@@ -388,6 +392,9 @@ void ADBDSurvivor::Tick(float DeltaTime)
 	SelfUnhooking(DeltaTime);
 
 	HandleSpawnScratchMark(DeltaTime);
+
+	HandleOpeningGate();
+	Server_HandleOpeningGate(DeltaTime);
 
 	/*PlayTrerrorRadiusSound();*/
 }
@@ -549,10 +556,28 @@ void ADBDSurvivor::Interact(const FInputActionValue& Value)
 		if (Value.Get<bool>())
 		{
 			StartSelfUnhook();
+			return;
 		}
 		else
 		{
 			StopSelfUnhook();
+			return;
+		}
+	}
+
+	if(CurrentInteractionState == ESurvivorInteraction::Lever)
+	{
+		if (Value.Get<bool>())
+		{
+			StartOpeningGate();
+			Server_StartOpeningGate();
+			return;
+		}
+		else
+		{
+			StopOpeningGate();
+			Server_StopOpeningGate();
+			return;
 		}
 	}
 }
@@ -610,7 +635,7 @@ void ADBDSurvivor::Action(const FInputActionValue& Value)
 	{
 		if (IsLocallyControlled())
 		{
-			HandleStruggleSkillCheck(PC->GetStruggleSkillCheckResult());
+			Server_HandleStruggleSkillCheck(PC->GetStruggleSkillCheckResult());
 		}
 	}
 
@@ -895,6 +920,30 @@ void ADBDSurvivor::FindInteratable()
 
 			}
 
+			if (ADBDGateLeverSwitchActor* HitLever = Cast<ADBDGateLeverSwitchActor>(HitResult.GetActor()))
+			{
+				if (HitLever->bIsOpened)
+				{
+					return;
+				}
+
+				CurrentInteractionState = ESurvivorInteraction::Lever;
+				CurrentTargetLever = HitLever;
+				Server_SetCurrentLever(HitLever);
+
+				if (IsLocallyControlled())
+				{
+					if (CurrentTargetLever->CurrentLeverRate < 100.0f)
+					{
+						PC->ShowIneractionMessage("Press M1 to open");
+						PC->ShowInteractionProgress(CurrentTargetLever->CurrentLeverRate);
+					}
+				}
+
+				return;
+
+			}
+
 			if (ADBDSurvivor* HitSurvivor = Cast<ADBDSurvivor>(HitResult.GetActor()))
 			{
 				if (HitSurvivor->CurrentHealthStateEnum == EHealthState::Healthy)
@@ -1088,7 +1137,7 @@ void ADBDSurvivor::Server_SetCurrentGenerator_Implementation(ADBDGeneratorActor*
 
 void ADBDSurvivor::Server_HandleRepairGenerator(float DeltaTIme)
 {
-	if (!HasAuthority() || !bIsReparingGenerator)
+	if (!HasAuthority() || !bIsReparingGenerator || !CurrentGenerator)
 	{
 		return;
 	}
@@ -1296,19 +1345,23 @@ void ADBDSurvivor::StopStruggleSkillCheck()
 
 void ADBDSurvivor::FailedStruggleSkillCheck()
 {
-	HandleStruggleSkillCheck(int8(2));
+	Server_HandleStruggleSkillCheck(int8(2));
 	StopStruggleSkillCheck();
 }
 
-void ADBDSurvivor::HandleStruggleSkillCheck(int8 Type)
+void ADBDSurvivor::Server_HandleStruggleSkillCheck_Implementation(int8 Type)
 {
-	if (Type == int8(0))
+	if (OwnedPlayerState)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Success Struggle")));
-	}
-	if (Type == int8(2))
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Fail Struggle")));
+		if (Type == int8(0))
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Success Struggle")));
+		}
+		if (Type == int8(2))
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Fail Struggle")));
+			OwnedPlayerState->CurrentHookStageRate -= 140.0f / 100.0f * 20.0f; // Decrease 20sec
+		}
 	}
 
 	StopStruggleSkillCheck();
@@ -1463,20 +1516,18 @@ void ADBDSurvivor::HandleHealed()
 	{
 		if (CurrentHealthStateEnum == EHealthState::Injured)
 		{
-			ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
-			if (PS)
+			if (OwnedPlayerState)
 			{
-				PS->SetHealthState(EHealthState::Healthy);
+				OwnedPlayerState->SetHealthState(EHealthState::Healthy);
 			}
 			CurrentHealedRate = 0.0f;
 			UpdateMovementSpeed();
 		}
 		if (CurrentHealthStateEnum == EHealthState::DeepWound)
 		{
-			ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
-			if (PS)
+			if (OwnedPlayerState)
 			{
-				PS->SetHealthState(EHealthState::Injured);
+				OwnedPlayerState->SetHealthState(EHealthState::Injured);
 			}
 			CurrentHealedRate = 0.0f;
 			UpdateMovementSpeed();
@@ -1699,18 +1750,16 @@ void ADBDSurvivor::Server_TakeDamage_Implementation()
 {
 	if (CurrentHealthStateEnum == EHealthState::Healthy)
 	{
-		ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
-		if (PS)
+		if (OwnedPlayerState)
 		{
-			PS->SetHealthState(EHealthState::Injured);
+			OwnedPlayerState->SetHealthState(EHealthState::Injured);
 		}
 	}
 	else if (CurrentHealthStateEnum == EHealthState::Injured)
 	{
-		ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
-		if (PS)
+		if (OwnedPlayerState)
 		{
-			PS->SetHealthState(EHealthState::DeepWound);
+			OwnedPlayerState->SetHealthState(EHealthState::DeepWound);
 		}
 	}
 }
@@ -1800,8 +1849,11 @@ void ADBDSurvivor::HandleHookStageRate(float DeltaTime)
 		return;
 	}
 
-	float RateSpeed = 100.0f / 140.0f;
-	CurrentHookStageRate -= RateSpeed * DeltaTime;
+	if (OwnedPlayerState)
+	{
+		CurrentHookStageRate = OwnedPlayerState->CurrentHookStageRate;
+		CurrentHookStageType = OwnedPlayerState->CurrentHookStageType;
+	}
 
 	if (CurrentHookStageType == int8(1) && CurrentHookStageRate <= 50.0f)
 	{
@@ -1811,6 +1863,32 @@ void ADBDSurvivor::HandleHookStageRate(float DeltaTime)
 	if (CurrentHookStageType == int8(2) && CurrentHookStageRate <= 0.0f)
 	{
 
+	}
+}
+
+void ADBDSurvivor::Server_HandleHookStageRate(float DeltaTime)
+{
+	if (CurrentHealthStateEnum != EHealthState::Hooked && !HasAuthority())
+	{
+		return;
+	}
+
+	float RateSpeed = 100.0f / 140.0f;
+	if (OwnedPlayerState)
+	{
+		OwnedPlayerState->CurrentHookStageRate -= RateSpeed * DeltaTime;
+
+		if (OwnedPlayerState->CurrentHookStageType == int8(1) && OwnedPlayerState->CurrentHookStageRate <= 50.0f)
+		{
+			OwnedPlayerState->CurrentHookStageType = int8(2);
+		}
+		else if(OwnedPlayerState->CurrentHookStageType == int8(2) && OwnedPlayerState->CurrentHookStageRate <= 0.0f)
+		{
+			if (HasAuthority())
+			{
+				Server_SurvivorDeath();
+			}
+		}
 	}
 }
 
@@ -2020,11 +2098,11 @@ void ADBDSurvivor::PlayTrerrorRadiusSound()
 
 void ADBDSurvivor::InitPlayerState()
 {
-	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
-	if (PS)
+	OwnedPlayerState = GetPlayerState<ADBDMainPlayerState>();
+	if (OwnedPlayerState)
 	{
-		PS->OnHealthStateChanged.AddDynamic(this, &ADBDSurvivor::UpdateLocalHealthState);
-		UpdateLocalHealthState(PS->GetCurrentHealthState());
+		OwnedPlayerState->OnHealthStateChanged.AddDynamic(this, &ADBDSurvivor::UpdateLocalHealthState);
+		UpdateLocalHealthState(OwnedPlayerState->GetCurrentHealthState());
 	}
 }
 
@@ -2038,4 +2116,105 @@ void ADBDSurvivor::OnRep_PlayerState()
 void ADBDSurvivor::UpdateLocalHealthState(EHealthState NewState)
 {
 	CurrentHealthStateEnum = NewState;
+}
+
+void ADBDSurvivor::Server_SurvivorEscape_Implementation()
+{
+	ADBDGameModeBase* GM = GetWorld()->GetAuthGameMode<ADBDGameModeBase>();
+	APlayerController* OwnedPC = GetController<APlayerController>();
+	if (GM && OwnedPC)
+	{
+		GM->OnSurvivorEscaped(OwnedPC);
+	}
+}
+
+void ADBDSurvivor::Server_SurvivorDeath_Implementation()
+{
+	ADBDGameModeBase* GM = GetWorld()->GetAuthGameMode<ADBDGameModeBase>();
+	APlayerController* OwnedPC = GetController<APlayerController>();
+	if (GM && OwnedPC)
+	{
+		GM->OnSurvivorDied(OwnedPC);
+	}
+}
+
+void ADBDSurvivor::StartOpeningGate()
+{
+	bIsInteracting = true;
+	bIsOpeningGate = true;
+}
+
+void ADBDSurvivor::StopOpeningGate()
+{
+	bIsInteracting = false;
+	bIsOpeningGate = false;
+}
+
+void ADBDSurvivor::HandleOpeningGate()
+{
+	if (CurrentInteractionState == ESurvivorInteraction::Lever && bIsInteracting)
+	{
+		if (CurrentTargetLever)
+		{
+			if (IsLocallyControlled() && PC)
+			{
+				PC->ShowInteractionProgress(CurrentTargetLever->CurrentLeverRate);
+			}
+
+			if (CurrentTargetLever->bIsOpened)
+			{
+				StopOpeningGate();
+			}
+		}
+	}
+}
+
+void ADBDSurvivor::Server_SetCurrentLever_Implementation(ADBDGateLeverSwitchActor* NewLever)
+{
+	CurrentTargetLever = NewLever;
+}
+
+void ADBDSurvivor::Server_HandleOpeningGate(float DeltaTime)
+{
+	if (!HasAuthority() || !bIsOpeningGate || !CurrentTargetLever)
+	{
+		return;
+	}
+
+	float RateSpeed = 100.0f / 20.0f; // temp value for easy test
+
+	CurrentTargetLever->CurrentLeverRate += RateSpeed * DeltaTime;
+
+	if (CurrentTargetLever->CurrentLeverRate >= 100.0f)
+	{
+		CurrentTargetLever->OpenExitGate();
+	}
+}
+
+void ADBDSurvivor::Server_StartOpeningGate_Implementation()
+{
+	StartOpeningGate();
+	Multicast_StartOpeningGate();
+}
+
+void ADBDSurvivor::Server_StopOpeningGate_Implementation()
+{
+	StopOpeningGate();
+	Multicast_StopOpeningGate();
+}
+
+void ADBDSurvivor::Multicast_StartOpeningGate_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StartOpeningGate();
+	}
+}
+
+void ADBDSurvivor::Multicast_StopOpeningGate_Implementation()
+{
+	if (!IsLocallyControlled())
+	{
+		StopOpeningGate();
+	}
 }

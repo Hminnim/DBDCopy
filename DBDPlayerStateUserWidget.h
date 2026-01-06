@@ -12,6 +12,7 @@
  */
 class UTextBlock;
 class UImage;
+class UProgressBar;
 
 UCLASS()
 class DBDCOPY_API UDBDPlayerStateUserWidget : public UUserWidget
@@ -20,6 +21,7 @@ class DBDCOPY_API UDBDPlayerStateUserWidget : public UUserWidget
 	
 public:
 	virtual void NativeConstruct() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime);
 	void SetUpPlayerState(FString PlaayerName);
 	UFUNCTION()
 	void ChangeHealthStateImage(EHealthState NewState);
@@ -30,6 +32,8 @@ protected:
 	UImage* CurrentHealthStateImage;
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* PlayerNameText;
+	UPROPERTY(meta = (BindWidget))
+	UProgressBar* HookStageRateProgressBar;
 	
 	UPROPERTY(EditAnywhere, Category = "HUD Sprite")
 	UTexture2D* HealthyTexture;
@@ -49,4 +53,6 @@ protected:
 private:
 	UPROPERTY()
 	TObjectPtr<ADBDMainPlayerState> PlayerStatePtr;
+
+	bool bIsHooked = false;
 };
