@@ -2,6 +2,7 @@
 
 
 #include "DBDExitGateActor.h"
+#include "DBDSurvivor.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/SceneComponent.h"
@@ -32,6 +33,10 @@ ADBDExitGateActor::ADBDExitGateActor()
 	// Exit Box Component
 	ExitOverlapBoxComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("ExitBoxComponent"));
 	ExitOverlapBoxComponent->SetupAttachment(GateSceneComponent);
+	ExitOverlapBoxComponent->SetCollisionResponseToAllChannels(ECR_Block);
+	ExitOverlapBoxComponent->SetCollisionResponseToChannel(ECC_GameTraceChannel3, ECR_Overlap); // Survivor Channel
+	ExitOverlapBoxComponent->OnComponentBeginOverlap.AddDynamic(this, &ADBDExitGateActor::OnOverlapBegin);
+	ExitOverlapBoxComponent->OnComponentEndOverlap.AddDynamic(this, &ADBDExitGateActor::OnOverlapEnd);
 }
 
 // Called when the game starts or when spawned
@@ -47,6 +52,22 @@ void ADBDExitGateActor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 
 	DOREPLIFETIME(ADBDExitGateActor, bIsOpening);
 	DOREPLIFETIME(ADBDExitGateActor, bIsOpened);
+}
+
+void ADBDExitGateActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (HasAuthority())
+	{
+		ADBDSurvivor* OverlappedSuvivor = Cast<ADBDSurvivor>(OtherActor);
+		if (OverlappedSuvivor)
+		{
+			OverlappedSuvivor->BeginOverlapExit();
+		}
+	}
+}
+
+void ADBDExitGateActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
 }
 
 void ADBDExitGateActor::StartOpen()

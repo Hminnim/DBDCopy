@@ -156,6 +156,9 @@ public:
 	// To show survivor scratch mark(Only for Killer)
 	void OnToShowScratchMark();
 
+	// Overlap Exit
+	void BeginOverlapExit();
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;

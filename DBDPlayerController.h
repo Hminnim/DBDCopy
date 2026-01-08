@@ -34,6 +34,8 @@ public:
 	void Client_StartGame(int32 GeneratorNum);
 	UFUNCTION(Client, Reliable)
 	void Client_NotifyGameResult(bool bEscaped, int32 KilledSurvivor);
+	UFUNCTION(Client, Reliable)
+	void Client_AllGeneratorCompleted();
 	void LeaveGame();
 
 	// Interaction Message
@@ -65,8 +67,8 @@ public:
 	void StruggleSkillCheck();
 	void StopStruggleSkillCheck();
 	int8 GetStruggleSkillCheckResult();
-
-	void ChangeRemainedGeneratorNum(int32 NewNum);
+	UFUNCTION(Client,Reliable)
+	void Client_ChangeRemainedGeneratorNum(int32 NewNum);
 
 	// For Debug
 	UFUNCTION(Server, Reliable)

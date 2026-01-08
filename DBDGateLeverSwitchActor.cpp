@@ -16,8 +16,10 @@ ADBDGateLeverSwitchActor::ADBDGateLeverSwitchActor()
 
 	// Lever static component
 	LeverBodyStaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Lever Body Mesh"));
-	LeverStaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Lever Mesh"));
 	LeverBodyStaticMesh->SetupAttachment(RootComponent);
+	LeverBodyStaticMesh->SetRenderCustomDepth(true);
+	LeverBodyStaticMesh->SetCustomDepthStencilValue(6);
+	LeverStaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Lever Mesh"));
 	LeverStaticMesh->SetupAttachment(LeverBodyStaticMesh);
 
 	// Lever collision box component
@@ -35,7 +37,13 @@ void ADBDGateLeverSwitchActor::OpenExitGate()
 	}
 
 	bIsOpened = true;
+	bCanOpen = false;
 	MyExitGateActor->StartOpen();
+}
+
+void ADBDGateLeverSwitchActor::BeCanOpen()
+{
+	bCanOpen = true;
 }
 
 // Called when the game starts or when spawned

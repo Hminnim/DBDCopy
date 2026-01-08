@@ -70,6 +70,8 @@ public:
 	// Change wiggle intensity
 	void ChangeWiggleIntensity(int8 Type);
 
+	void OnAllGeneratorCompleted();
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -260,6 +262,8 @@ private:
 	void DisableHookAura();
 	void EnableSurvivorHookAura();
 	void DisableSurvivorHookAura();
+	void EnableLeverAura();
+	void DisableLeverAura();
 
 	// Show Survivor Scratch Mark
 	void ShowSurvivorScratchMark();

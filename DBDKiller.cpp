@@ -36,6 +36,9 @@ ADBDKiller::ADBDKiller()
 	GetCharacterMovement()->bUseControllerDesiredRotation = true;
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 
+	// Capsule Component
+	GetCapsuleComponent()->SetCollisionProfileName(FName("Killer"));
+
 	// Camera config
 	Camera = CreateDefaultSubobject<UCameraComponent>("Camera");
 	Camera->SetupAttachment(GetMesh(), "headSocket");
@@ -124,6 +127,11 @@ void ADBDKiller::ChangeWiggleIntensity(int8 Type)
 	{
 		CurrentWiggleIntensity = 0.0f;
 	}
+}
+
+void ADBDKiller::OnAllGeneratorCompleted()
+{
+	EnableLeverAura();
 }
 
 // Called when the game starts or when spawned
@@ -1367,6 +1375,22 @@ void ADBDKiller::DisableSurvivorHookAura()
 	if (AuraMaterialInstance)
 	{
 		AuraMaterialInstance->SetScalarParameterValue("ShowSurvivorHookAura", 0.0f);
+	}
+}
+
+void ADBDKiller::EnableLeverAura()
+{
+	if (AuraMaterialInstance)
+	{
+		AuraMaterialInstance->SetScalarParameterValue("ShowLeverAura", 1.0f);
+	}
+}
+
+void ADBDKiller::DisableLeverAura()
+{
+	if (AuraMaterialInstance)
+	{
+		AuraMaterialInstance->SetScalarParameterValue("ShowLeverAura", 0.0f);
 	}
 }
 

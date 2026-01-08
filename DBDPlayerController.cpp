@@ -4,6 +4,8 @@
 #include "DBDPlayerController.h"
 #include "DBDGameOverUserWidget.h"
 #include "DBDMainPlayerState.h"
+#include "DBDKiller.h"
+#include "DBDSurvivor.h"
 #include "DBDSessionInstanceSubsystem.h"
 
 void ADBDPlayerController::BeginPlay()
@@ -96,6 +98,26 @@ void ADBDPlayerController::Client_NotifyGameResult_Implementation(bool bEscaped,
 
 	SetInputMode(FInputModeUIOnly());
 	bShowMouseCursor = true;
+}
+
+void ADBDPlayerController::Client_AllGeneratorCompleted_Implementation()
+{
+	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
+	if (PS)
+	{
+		if (PS->bIsKiller)
+		{
+			ADBDKiller* KillerActor = GetPawn<ADBDKiller>();
+			if (KillerActor)
+			{
+				KillerActor->OnAllGeneratorCompleted();
+			}
+		}
+		else
+		{
+			
+		}
+	}
 }
 
 void ADBDPlayerController::LeaveGame()
@@ -486,7 +508,7 @@ int8 ADBDPlayerController::GetStruggleSkillCheckResult()
 	
 }
 
-void ADBDPlayerController::ChangeRemainedGeneratorNum(int32 NewNum)
+void ADBDPlayerController::Client_ChangeRemainedGeneratorNum_Implementation(int32 NewNum)
 {
 	if (PlayUserWidget)
 	{

@@ -30,6 +30,9 @@ ADBDSurvivor::ADBDSurvivor()
 	GetCharacterMovement()->MaxWalkSpeedCrouched = CrouchSpeed;
 	GetCharacterMovement()->GetNavAgentPropertiesRef().bCanCrouch = true;
 
+	// Capsule component
+	GetCapsuleComponent()->SetCollisionProfileName(FName("Survivor"));
+
 	// SpringArm config
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>("SpringArm");
 	SpringArm->SetupAttachment(GetMesh());
@@ -265,6 +268,11 @@ void ADBDSurvivor::StopBeingUnhooked()
 void ADBDSurvivor::OnToShowScratchMark()
 {
 	bCanShowScratch = true;
+}
+
+void ADBDSurvivor::BeginOverlapExit()
+{
+	Server_SurvivorEscape();
 }
 
 void ADBDSurvivor::OnTakeDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
@@ -922,7 +930,7 @@ void ADBDSurvivor::FindInteratable()
 
 			if (ADBDGateLeverSwitchActor* HitLever = Cast<ADBDGateLeverSwitchActor>(HitResult.GetActor()))
 			{
-				if (HitLever->bIsOpened)
+				if (!HitLever->bCanOpen)
 				{
 					return;
 				}
@@ -1075,12 +1083,10 @@ void ADBDSurvivor::HandleRepaiGenerator(float DeltaTime)
 		return;
 	}
 
-	/*if (CurrentGenerator->CurrentRepairRate >= 100.0f)
+	if (CurrentGenerator->CurrentRepairRate >= 100.0f)
 	{
-		CurrentGenerator->bIsRepaired = true;
 		StopRepairGenerator();
-		Server_StopRepairGenerator();
-	}*/
+	}
 }
 
 void ADBDSurvivor::Server_UpdateGeneratorRepairRate_Implementation(float Amount)
@@ -1142,7 +1148,7 @@ void ADBDSurvivor::Server_HandleRepairGenerator(float DeltaTIme)
 		return;
 	}
 
-	CurrentGenerator->CurrentRepairRate += RepairSpeed[CurrentGenerator->CurrentRepairingSurvivor] * DeltaTIme;
+	CurrentGenerator->CurrentRepairRate += RepairSpeed[CurrentGenerator->CurrentRepairingSurvivor] * 10.0f * DeltaTIme;
 
 	if (CurrentGenerator->CurrentRepairRate >= 100.0f)
 	{
@@ -2122,6 +2128,12 @@ void ADBDSurvivor::Server_SurvivorEscape_Implementation()
 {
 	ADBDGameModeBase* GM = GetWorld()->GetAuthGameMode<ADBDGameModeBase>();
 	APlayerController* OwnedPC = GetController<APlayerController>();
+
+	if (OwnedPlayerState)
+	{
+		OwnedPlayerState->SetHealthState(EHealthState::Exit);
+	}
+
 	if (GM && OwnedPC)
 	{
 		GM->OnSurvivorEscaped(OwnedPC);
@@ -2132,6 +2144,12 @@ void ADBDSurvivor::Server_SurvivorDeath_Implementation()
 {
 	ADBDGameModeBase* GM = GetWorld()->GetAuthGameMode<ADBDGameModeBase>();
 	APlayerController* OwnedPC = GetController<APlayerController>();
+
+	if (OwnedPlayerState)
+	{
+		OwnedPlayerState->SetHealthState(EHealthState::Death);
+	}
+
 	if (GM && OwnedPC)
 	{
 		GM->OnSurvivorDied(OwnedPC);

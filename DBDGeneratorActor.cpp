@@ -57,3 +57,9 @@ void ADBDGeneratorActor::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
+void ADBDGeneratorActor::OnCompletedRepair()
+{
+	CurrentRepairRate = 100.0f;
+	bIsRepaired = true;
+}
+

@@ -50,6 +50,19 @@ protected:
 
 	FVector StartLeftLocation = FVector{ -200.0f,0.0f,0.0f };
 	FVector StartRightLocation = FVector{ 200.0f,0.0f,0.0f };
-	FVector	TargetLeftLocation = FVector{ -400.0f,0.0f,0.0f };
-	FVector TargetRightLocation = FVector{ 400.0f,0.0f,0.0f };
+	FVector	TargetLeftLocation = FVector{ -800.0f,0.0f,0.0f };
+	FVector TargetRightLocation = FVector{ 800.0f,0.0f,0.0f };
+
+private:
+	UFUNCTION()
+	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep,
+		const FHitResult& SweepResult);
+	UFUNCTION()
+	void OnOverlapEnd(
+		UPrimitiveComponent* OverlappedComponent,
+		AActor* OtherActor,
+		UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex
+	);
 };

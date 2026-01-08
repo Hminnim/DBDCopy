@@ -20,6 +20,8 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	void OnCompletedRepair();
+
 	// Generator value
 	UPROPERTY(Replicated)
 	float CurrentRepairRate = 0.0f;

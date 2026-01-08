@@ -31,6 +31,7 @@ public:
 	ADBDExitGateActor* MyExitGateActor;
 
 	void OpenExitGate();
+	void BeCanOpen();
 
 protected:
 	// Called when the game starts or when spawned

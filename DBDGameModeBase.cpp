@@ -5,6 +5,9 @@
 #include "DBDMainPlayerState.h"
 #include "DBDGameInstance.h"
 #include "DBDPlayerController.h"
+#include "DBDGeneratorActor.h"
+#include "DBDGateLeverSwitchActor.h"
+#include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "DBDObjectSpawnManager.h"
 
@@ -110,13 +113,51 @@ void ADBDGameModeBase::ChangeCharacter(APlayerController* PlayerController, bool
 void ADBDGameModeBase::OnGeneratorCompleted()
 {
 	RemainGnerators--;
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Generator Completed")));
 
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 	{
 		ADBDPlayerController* MyPC = Cast<ADBDPlayerController>(It->Get());
 		if (MyPC)
 		{
-			MyPC->ChangeRemainedGeneratorNum(RemainGnerators);
+			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Try ChangeRemainedGeneratorNum")));
+			MyPC->Client_ChangeRemainedGeneratorNum(RemainGnerators);
+		}
+	}
+
+	CheckAllGeneratorCompleted();
+}
+
+void ADBDGameModeBase::CheckAllGeneratorCompleted()
+{
+	if (RemainGnerators <= 0)
+	{
+		for (TActorIterator<ADBDGeneratorActor> It(GetWorld()); It; ++It)
+		{
+			ADBDGeneratorActor* FoundActor = *It;
+
+			if (FoundActor)
+			{
+				FoundActor->OnCompletedRepair();
+			}
+		}
+
+		for (TActorIterator<ADBDGateLeverSwitchActor> It(GetWorld()); It; ++It)
+		{
+			ADBDGateLeverSwitchActor* FoundActor = *It;
+
+			if (FoundActor)
+			{
+				FoundActor->BeCanOpen();
+			}
+		}
+
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(It->Get()))
+			{
+				PC->Client_AllGeneratorCompleted();
+			}
 		}
 	}
 }
