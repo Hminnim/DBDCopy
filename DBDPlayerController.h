@@ -15,6 +15,7 @@
 
 class USoundBase;
 class UDBDGameOverUserWidget;
+class UDBDTargetPopUpWidget;
 
 /**
  * 
@@ -35,7 +36,7 @@ public:
 	UFUNCTION(Client, Reliable)
 	void Client_NotifyGameResult(bool bEscaped, int32 KilledSurvivor);
 	UFUNCTION(Client, Reliable)
-	void Client_AllGeneratorCompleted();
+	void Client_AllGeneratorCompleted(const TArray<AActor*>& TargetLevers);
 	void LeaveGame();
 
 	// Interaction Message
@@ -67,8 +68,14 @@ public:
 	void StruggleSkillCheck();
 	void StopStruggleSkillCheck();
 	int8 GetStruggleSkillCheckResult();
-	UFUNCTION(Client,Reliable)
+	UFUNCTION(Client, Reliable)
 	void Client_ChangeRemainedGeneratorNum(int32 NewNum);
+
+	// Pop up hud
+	UFUNCTION()
+	void ShowTargetPopUpWidget(AActor* NewTarget, int32 NewType);
+	UFUNCTION()
+	void RemoveTargetPopUpWidget(AActor* TargetToRemove);
 
 	// For Debug
 	UFUNCTION(Server, Reliable)
@@ -93,6 +100,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<UDBDGameOverUserWidget> GameOverWidgetClass;
 	UDBDGameOverUserWidget* GameOverWidget;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UDBDTargetPopUpWidget> TargetPopUpWidgetClass;
+	UPROPERTY()
+	TMap<AActor*, UDBDTargetPopUpWidget*> TargetWidgetMap;
 
 private:
 	FTimerHandle SkillCheckTimerHandle;

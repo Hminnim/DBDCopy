@@ -10,6 +10,7 @@
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "DBDObjectSpawnManager.h"
+#include "GameFramework/PlayerStart.h"
 
 ADBDGameModeBase::ADBDGameModeBase()
 {
@@ -56,6 +57,45 @@ void ADBDGameModeBase::HandlePlayerLoaded(APlayerController* PC)
 			}
 		}
 	}
+}
+
+AActor* ADBDGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
+{
+	bool bIsKiller = false;
+
+	ADBDMainPlayerState* PS = Player->GetPlayerState<ADBDMainPlayerState>();
+	if (PS)
+	{
+		bIsKiller = PS->bIsKiller;
+	}
+
+	FName RequiredTag = FName("Survivor");
+	if (bIsKiller)
+	{
+		RequiredTag = FName("Killer");
+	}
+
+	TArray<AActor*> AllPlayerStarts;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APlayerStart::StaticClass(), AllPlayerStarts);
+
+	TArray<AActor*> ValidPlayerStarts;
+	for (AActor* Actor : AllPlayerStarts)
+	{
+		APlayerStart* StartPoint = Cast<APlayerStart>(Actor);
+		if (StartPoint && StartPoint->PlayerStartTag == RequiredTag)
+		{
+			ValidPlayerStarts.Add(StartPoint);
+		}
+	}
+
+	if (ValidPlayerStarts.Num() == 0)
+	{
+		return nullptr;
+	}
+
+	int32 RandomIndex = FMath::RandRange(0, ValidPlayerStarts.Num() - 1);
+
+	return ValidPlayerStarts[RandomIndex];
 }
 
 void ADBDGameModeBase::HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer)
@@ -142,6 +182,7 @@ void ADBDGameModeBase::CheckAllGeneratorCompleted()
 			}
 		}
 
+		TArray<AActor*> LeverActors;
 		for (TActorIterator<ADBDGateLeverSwitchActor> It(GetWorld()); It; ++It)
 		{
 			ADBDGateLeverSwitchActor* FoundActor = *It;
@@ -149,6 +190,7 @@ void ADBDGameModeBase::CheckAllGeneratorCompleted()
 			if (FoundActor)
 			{
 				FoundActor->BeCanOpen();
+				LeverActors.Add(FoundActor);
 			}
 		}
 
@@ -156,7 +198,7 @@ void ADBDGameModeBase::CheckAllGeneratorCompleted()
 		{
 			if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(It->Get()))
 			{
-				PC->Client_AllGeneratorCompleted();
+				PC->Client_AllGeneratorCompleted(LeverActors);
 			}
 		}
 	}

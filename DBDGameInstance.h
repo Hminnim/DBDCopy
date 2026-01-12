@@ -16,7 +16,7 @@ class DBDCOPY_API UDBDGameInstance : public UGameInstance
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Information")
-	bool bIsKiller = false;
+	bool bIsKiller = true;
 
 	// For Server
 	int32 PlayersCount = 0;

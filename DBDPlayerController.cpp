@@ -7,6 +7,8 @@
 #include "DBDKiller.h"
 #include "DBDSurvivor.h"
 #include "DBDSessionInstanceSubsystem.h"
+#include "DBDTargetPopUpWidget.h"
+#include "TimerManager.h"
 
 void ADBDPlayerController::BeginPlay()
 {
@@ -100,7 +102,7 @@ void ADBDPlayerController::Client_NotifyGameResult_Implementation(bool bEscaped,
 	bShowMouseCursor = true;
 }
 
-void ADBDPlayerController::Client_AllGeneratorCompleted_Implementation()
+void ADBDPlayerController::Client_AllGeneratorCompleted_Implementation(const TArray<AActor*>& TargetLevers)
 {
 	ADBDMainPlayerState* PS = GetPlayerState<ADBDMainPlayerState>();
 	if (PS)
@@ -117,6 +119,11 @@ void ADBDPlayerController::Client_AllGeneratorCompleted_Implementation()
 		{
 			
 		}
+	}
+
+	for (AActor* LeverActor : TargetLevers)
+	{
+		ShowTargetPopUpWidget(LeverActor, int32(0));
 	}
 }
 
@@ -506,6 +513,51 @@ int8 ADBDPlayerController::GetStruggleSkillCheckResult()
 		return int8(2);
 	}
 	
+}
+
+void ADBDPlayerController::ShowTargetPopUpWidget(AActor* NewTarget, int32 NewType)
+{
+	if (!NewTarget || !TargetPopUpWidgetClass)
+	{
+		return;
+	}
+
+	if (TargetWidgetMap.Contains(NewTarget))
+	{
+		return;
+	}
+
+	UDBDTargetPopUpWidget* NewWidget = CreateWidget<UDBDTargetPopUpWidget>(this, TargetPopUpWidgetClass);
+	if (NewWidget)
+	{
+		NewWidget->SetTargetActor(NewTarget, NewType);
+		NewWidget->SetAlignmentInViewport(FVector2D(0.5f, 0.5f));
+		NewWidget->AddToViewport();
+
+		TargetWidgetMap.Add(NewTarget, NewWidget);
+
+		FTimerHandle TimerHandle;
+		FTimerDelegate TimerDel;
+		TimerDel.BindUFunction(this, FName("RemoveTargetPopUpWidget"), NewTarget);
+
+		GetWorld()->GetTimerManager().SetTimer(TimerHandle, TimerDel, 5.0f, false);
+	}
+}
+
+void ADBDPlayerController::RemoveTargetPopUpWidget(AActor* TargetToRemove)
+{
+	UDBDTargetPopUpWidget** FoundWidgetPtr = TargetWidgetMap.Find(TargetToRemove);
+	if (FoundWidgetPtr)
+	{
+		UDBDTargetPopUpWidget* FoundWidget = *FoundWidgetPtr;
+		if (FoundWidget)
+		{
+			FoundWidget->RemoveFromParent();
+			FoundWidget = nullptr;
+		}
+
+		TargetWidgetMap.Remove(TargetToRemove);
+	}
 }
 
 void ADBDPlayerController::Client_ChangeRemainedGeneratorNum_Implementation(int32 NewNum)

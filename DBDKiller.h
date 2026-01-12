@@ -258,6 +258,8 @@ private:
 	void MultiCast_StartHookSurvivor();
 
 	// Controll Aura
+	void EnableGeneratorAura();
+	void DisableGeneratorAura();
 	void EnableHookAura();
 	void DisableHookAura();
 	void EnableSurvivorHookAura();

@@ -34,7 +34,7 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FOnHealthStateChanged OnHealthStateChanged;
 	UPROPERTY(Replicated)
-	bool bIsKiller = false;
+	bool bIsKiller = true;
 	UPROPERTY(Replicated)
 	int8 CurrentHookStageType = int8(0);
 	UPROPERTY(Replicated)

@@ -18,7 +18,7 @@ ADBDGateLeverSwitchActor::ADBDGateLeverSwitchActor()
 	LeverBodyStaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Lever Body Mesh"));
 	LeverBodyStaticMesh->SetupAttachment(RootComponent);
 	LeverBodyStaticMesh->SetRenderCustomDepth(true);
-	LeverBodyStaticMesh->SetCustomDepthStencilValue(6);
+	LeverBodyStaticMesh->SetCustomDepthStencilValue(8);
 	LeverStaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Lever Mesh"));
 	LeverStaticMesh->SetupAttachment(LeverBodyStaticMesh);
 

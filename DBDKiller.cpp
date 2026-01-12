@@ -132,6 +132,7 @@ void ADBDKiller::ChangeWiggleIntensity(int8 Type)
 void ADBDKiller::OnAllGeneratorCompleted()
 {
 	EnableLeverAura();
+	DisableGeneratorAura();
 }
 
 // Called when the game starts or when spawned
@@ -174,7 +175,9 @@ void ADBDKiller::BeginPlay()
 			if (AuraMaterialInstance)
 			{
 				AuraPostProcessComponent->Settings.AddBlendable(AuraMaterialInstance, 1.0f);
+				EnableGeneratorAura();
 				DisableHookAura();
+				DisableLeverAura();
 			}
 		}
 	}
@@ -263,7 +266,7 @@ void ADBDKiller::NotifyControllerChanged()
 		{
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
-	}
+	} 
 }
 
 // Called to bind functionality to input
@@ -1344,6 +1347,22 @@ void ADBDKiller::MultiCast_StartHookSurvivor_Implementation()
 void ADBDKiller::EndBeStunned()
 {
 	bIsStunned = false;
+}
+
+void ADBDKiller::EnableGeneratorAura()
+{
+	if (AuraMaterialInstance)
+	{
+		AuraMaterialInstance->SetScalarParameterValue("ShowGeneratorAura", 1.0f);
+	}
+}
+
+void ADBDKiller::DisableGeneratorAura()
+{
+	if (AuraMaterialInstance)
+	{
+		AuraMaterialInstance->SetScalarParameterValue("ShowGeneratorAura", 0.0f);
+	}
 }
 
 void ADBDKiller::EnableHookAura()

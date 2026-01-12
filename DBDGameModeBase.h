@@ -21,6 +21,7 @@ public:
 	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
 
 	void HandlePlayerLoaded(APlayerController* PC);
+	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
 	virtual void HandleStartingNewPlayer_Implementation(APlayerController* NewPlayer) override;
 	void ChangeCharacter(APlayerController* PlayerController, bool bIsKiller);
 	void OnGeneratorCompleted();
