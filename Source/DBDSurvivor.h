@@ -72,6 +72,7 @@ public:
 	bool bIsStruggling = false;
 	bool bIsOpeningGate = false;
 
+	// AnimMontage
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")
 	UAnimMontage* VaultSlowAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Animation")

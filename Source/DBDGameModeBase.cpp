@@ -127,6 +127,7 @@ void ADBDGameModeBase::HandleStartingNewPlayer_Implementation(APlayerController*
 	}
 }
 
+// For test play
 void ADBDGameModeBase::ChangeCharacter(APlayerController* PlayerController, bool bIsKiller)
 {
 	// Choose player another character class from GameInstance

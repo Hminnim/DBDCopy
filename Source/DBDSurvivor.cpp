@@ -709,7 +709,7 @@ void ADBDSurvivor::OnRep_IsSprinting()
 
 void ADBDSurvivor::Server_SetSprinting_Implementation(bool bNewSprinting)
 {
-	bIsSprinting = bNewSprinting;
+	bIsSprinting = bNewSprinting; // ReplicatedUsing = OnRep_IsSprinting
 	UpdateMovementSpeed();
 }
 
@@ -774,6 +774,7 @@ void ADBDSurvivor::StartVault()
 	GetCharacterMovement()->SetMovementMode(MOVE_Flying);
 
 	// Play animation
+	// Window Vault animation
 	if (VaultType == 0 && CurrentWindow)
 	{
 		if (bIsSprinting)
@@ -791,6 +792,7 @@ void ADBDSurvivor::StartVault()
 			}
 		}
 	}
+	// Pallet Vault animation
 	if (VaultType == 1 && CurrentPallet)
 	{
 		if (bIsSprinting)
@@ -895,16 +897,18 @@ void ADBDSurvivor::FindInteratable()
 		return;
 	}
 
+	// LineTrace
 	FVector LineTraceStart = Camera->GetComponentLocation() + Camera->GetForwardVector();
 	FVector LineTraceEnd = (Camera->GetForwardVector() * 300) + LineTraceStart;
 	FHitResult HitResult;
 	FCollisionQueryParams TraceParams;
-	TraceParams.AddIgnoredActor(this);
+	TraceParams.AddIgnoredActor(this); // Ignore self
 
 	if (GetWorld()->LineTraceSingleByChannel(HitResult, LineTraceStart, LineTraceEnd, ECollisionChannel::ECC_Visibility, TraceParams))
 	{
 		if (HitResult.GetActor())
 		{
+			// Hit Generator
 			if (ADBDGeneratorActor* HitGenerator = Cast<ADBDGeneratorActor>(HitResult.GetActor()))
 			{
 				if (HitGenerator->bIsRepaired)
@@ -927,7 +931,7 @@ void ADBDSurvivor::FindInteratable()
 				return;
 
 			}
-
+			// Hit Gate Lever
 			if (ADBDGateLeverSwitchActor* HitLever = Cast<ADBDGateLeverSwitchActor>(HitResult.GetActor()))
 			{
 				if (!HitLever->bCanOpen)
@@ -951,7 +955,7 @@ void ADBDSurvivor::FindInteratable()
 				return;
 
 			}
-
+			// Hit Survivor
 			if (ADBDSurvivor* HitSurvivor = Cast<ADBDSurvivor>(HitResult.GetActor()))
 			{
 				if (HitSurvivor->CurrentHealthStateEnum == EHealthState::Healthy)
@@ -959,6 +963,7 @@ void ADBDSurvivor::FindInteratable()
 					return;
 				}
 
+				// Find a Survivor to heal
 				if (HitSurvivor->CurrentHealthStateEnum == EHealthState::Injured || HitSurvivor->CurrentHealthStateEnum == EHealthState::DeepWound)
 				{
 					CurrentInteractionState = ESurvivorInteraction::Heal;
@@ -971,7 +976,7 @@ void ADBDSurvivor::FindInteratable()
 					}
 					return;
 				}
-				
+				// Find a Survivor to Unhook
 				if (HitSurvivor->CurrentHealthStateEnum == EHealthState::Hooked)
 				{
 					CurrentInteractionState = ESurvivorInteraction::UnHook;
@@ -1039,7 +1044,7 @@ void ADBDSurvivor::StartRepairGenerator()
 	SetActorRotation(RepairRotation);
 
 	bIsInteracting = true;
-	CurrentGenerator->CurrentRepairingSurvivor = FMath::Clamp(++CurrentGenerator->CurrentRepairingSurvivor, 0, 4);
+	CurrentGenerator->CurrentRepairingSurvivor = FMath::Clamp(++CurrentGenerator->CurrentRepairingSurvivor, 0, 4); // Increase repairing survivor count
 
 	// Try trigger skillcheck
 	if (IsLocallyControlled())
@@ -1064,7 +1069,9 @@ void ADBDSurvivor::StopRepairGenerator()
 	}
 
 	bIsInteracting = false;
-	CurrentGenerator->CurrentRepairingSurvivor = FMath::Clamp(--CurrentGenerator->CurrentRepairingSurvivor, 0, 4);
+	CurrentGenerator->CurrentRepairingSurvivor = FMath::Clamp(--CurrentGenerator->CurrentRepairingSurvivor, 0, 4); // Decrease repairing survivor count
+
+	// Stop skill check
 	if (IsLocallyControlled())
 	{
 		if (PC->bIsSkillChecking)
@@ -1246,7 +1253,7 @@ void ADBDSurvivor::TryTriggerGeneratorSkillCheck()
 	}
 
 	float Chance = FMath::FRand(); // 0.0 ~ 1.0
-	if (Chance < 0.08)
+	if (Chance < 0.08) // Start skil check possibility
 	{
 		StartGeneratorSkillCheck();
 	}
@@ -1359,10 +1366,12 @@ void ADBDSurvivor::Server_HandleStruggleSkillCheck_Implementation(int8 Type)
 {
 	if (OwnedPlayerState)
 	{
+		// Success Struggle
 		if (Type == int8(0))
 		{
 			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Success Struggle")));
 		}
+		// Failed Struggle
 		if (Type == int8(2))
 		{
 			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Fail Struggle")));
@@ -1520,6 +1529,7 @@ void ADBDSurvivor::HandleHealed()
 
 	if (CurrentHealedRate >= 100.0f)
 	{
+		// Change Survivor State from Injured to Healthy
 		if (CurrentHealthStateEnum == EHealthState::Injured)
 		{
 			if (OwnedPlayerState)
@@ -1529,6 +1539,7 @@ void ADBDSurvivor::HandleHealed()
 			CurrentHealedRate = 0.0f;
 			UpdateMovementSpeed();
 		}
+		// Change Survivor State from DeepWound to Injured
 		if (CurrentHealthStateEnum == EHealthState::DeepWound)
 		{
 			if (OwnedPlayerState)
@@ -1599,20 +1610,23 @@ void ADBDSurvivor::HandleBleeding(float DeltaTime)
 
 		if (BleedingTimer >= 1.2f)
 		{
-			UCharacterMovementComponent* CMC = GetCharacterMovement();
+			UCharacterMovementComponent* CMC = GetCharacterMovement(); // To get floor result
 			if (CMC)
 			{
 				FFindFloorResult& FloorResult = CMC->CurrentFloor;
 
 				if (FloorResult.bBlockingHit && FloorResult.IsWalkableFloor())
 				{
+					// Hit floor
 					FVector HitLocation = FloorResult.HitResult.Location;
 					FVector HitNormal = FloorResult.HitResult.ImpactNormal;
 
+					// For diverse blood decal
 					FRotator SpawnDecalRotation = HitNormal.Rotation();
 					/*SpawnDecalRotation.Pitch -= 90.0f;*/
 					SpawnDecalRotation.Yaw += FMath::RandRange(0.0f, 360.0f);
 
+					// Spawn decal
 					if (BloodDecalMaterial)
 					{
 						UGameplayStatics::SpawnDecalAtLocation(
@@ -1626,10 +1640,7 @@ void ADBDSurvivor::HandleBleeding(float DeltaTime)
 					}
 				}
 			}
-
 			BleedingTimer = 0.0f;
-
-
 		}
 	}
 }
@@ -1641,17 +1652,13 @@ void ADBDSurvivor::StartDrop()
 	FVector VaultEndLocation = CurrentPallet->StartLocation[1];
 	bool isLeft = false;
 
+	// Is pallet leaned on left side
 	double MinDistance = FVector::Distance(GetActorLocation(), VaultStartLocation);
 	if (MinDistance > FVector::Distance(GetActorLocation(), CurrentPallet->StartLocation[1]))
 	{
 		VaultStartLocation = VaultEndLocation;
 		VaultEndLocation = CurrentPallet->StartLocation[0];
 		isLeft = true;
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("pallet0")));
-	}
-	else
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("pallet1")));
 	}
 
 	VaultStartLocation.Z = GetActorLocation().Z;
@@ -1705,6 +1712,7 @@ void ADBDSurvivor::HandleHealthState()
 	{
 		GetCharacterMovement()->MaxWalkSpeed = CrawlSpeed;
 
+		// Stop interacting
 		if (bIsInteracting)
 		{
 			if (CurrentInteractionState == ESurvivorInteraction::Repair)
@@ -1782,6 +1790,8 @@ void ADBDSurvivor::StartUnhook()
 	FVector UnhookLocation = GetActorLocation();
 	FRotator UnhookRotation = GetActorRotation();
 	FName SocketName = "unhookSocket";
+
+	// Find the location to unhook
 	if (CurrentTargetSurvivor)
 	{
 		if (CurrentTargetSurvivor->GetMesh()->DoesSocketExist(SocketName))
@@ -1855,6 +1865,7 @@ void ADBDSurvivor::HandleHookStageRate(float DeltaTime)
 		return;
 	}
 
+	// Cached
 	if (OwnedPlayerState)
 	{
 		CurrentHookStageRate = OwnedPlayerState->CurrentHookStageRate;
@@ -1884,10 +1895,12 @@ void ADBDSurvivor::Server_HandleHookStageRate(float DeltaTime)
 	{
 		OwnedPlayerState->CurrentHookStageRate -= RateSpeed * DeltaTime;
 
+		// Change hook stage to Struggle Phase
 		if (OwnedPlayerState->CurrentHookStageType == int8(1) && OwnedPlayerState->CurrentHookStageRate <= 50.0f)
 		{
 			OwnedPlayerState->CurrentHookStageType = int8(2);
 		}
+		// Survivor Sacrifice(death)
 		else if(OwnedPlayerState->CurrentHookStageType == int8(2) && OwnedPlayerState->CurrentHookStageRate <= 0.0f)
 		{
 			if (HasAuthority())
@@ -2028,7 +2041,7 @@ void ADBDSurvivor::SpawnScratchMark()
 	UCharacterMovementComponent* CMC = GetCharacterMovement();
 	if (CMC)
 	{
-		FFindFloorResult& FloorResult = CMC->CurrentFloor;
+		FFindFloorResult& FloorResult = CMC->CurrentFloor; // To get floor result
 
 		if (FloorResult.bBlockingHit && FloorResult.IsWalkableFloor())
 		{
@@ -2043,8 +2056,8 @@ void ADBDSurvivor::SpawnScratchMark()
 			FVector SurfaceRight = FRotationMatrix(DecalOrientation).GetScaledAxis(EAxis::Y);
 			FVector SurfaceUp = FRotationMatrix(DecalOrientation).GetScaledAxis(EAxis::Z);
 
+			// random count, random location, random rotation(to make scratch)
 			for (int32 i = 0; i < SpawnCount; i++)
-
 			{
 				float RandY = FMath::RandRange(-50.0f, 50.0f);
 				float RandZ = FMath::RandRange(-50.0f, 50.0f);
@@ -2094,8 +2107,8 @@ void ADBDSurvivor::PlayTrerrorRadiusSound()
 			GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Heart Beat play")));
 		}
 
+		// Set hearbeat volume inversely by Distance
 		float FearFactor = FMath::Clamp(1.0f - (Distance / 3200.0f), 0.0f, 1.0f);
-
 		HeartBeatSound->SetVolumeMultiplier(FearFactor * 1.5f);
 		HeartBeatSound->SetPitchMultiplier(1.0f + FearFactor);
 	}

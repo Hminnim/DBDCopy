@@ -345,11 +345,7 @@ void ADBDKiller::Action(const FInputActionValue& Value)
 		if (PC)
 		{
 			PC->HideActionMessage();
-			UDBDGameInstance* GI = Cast<UDBDGameInstance>(GetGameInstance());
-			if (GI)
-			{
-				PC->CharacterChange(GI->bIsKiller);
-			}
+			PC->CharacterChange(true);
 		}
 	}
 	if (bCanBreakPallet)
