@@ -22,6 +22,7 @@ void ADBDLobbyPlayerState::CopyProperties(APlayerState* PlayerState)
 {
 	Super::CopyProperties(PlayerState);
 
+	// Copy all player's properties to main
 	ADBDMainPlayerState* NewState = Cast<ADBDMainPlayerState>(PlayerState);
 	if (NewState)
 	{

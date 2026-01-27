@@ -103,7 +103,7 @@ void ADBDKiller::BeStunned()
 	{
 		StopCarryingSurvivor();
 	}	
-
+	// Play stun anim
 	if (StunPalletAnim)
 	{
 		PlayAnimMontage(StunPalletAnim);
@@ -186,6 +186,7 @@ void ADBDKiller::BeginPlay()
 		AuraPostProcessComponent->bEnabled = false;
 	}
 
+	// Set survivors' scratch mark be showed
 	if (IsLocallyControlled())
 	{
 		FTimerHandle FindSurvivor;
@@ -227,23 +228,9 @@ void ADBDKiller::Tick(float DeltaTime)
 		{
 			HandleWiggleStrape();
 
+			// When carried survivor's wiggle rate is over 100.0f
 			if (CurrentTargetSurvivor->CurrentWiggleRate >= 100.0f)
 			{
-				if (IsLocallyControlled())
-				{
-					GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Success Wiggle Killer")));
-				}
-				else
-				{
-					if (HasAuthority())
-					{
-						GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Success Wiggle Server")));
-					}
-					else
-					{
-						GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("Success Wiggle Survivor")));
-					}					
-				}
 				StopCarryingSurvivor();
 			}
 		}
@@ -303,6 +290,7 @@ void ADBDKiller::Move(const FInputActionValue& Value)
 	AddMovementInput(RightDirection, MovementValue.X);
 }
 
+// first person
 void ADBDKiller::Look(const FInputActionValue& Value)
 {
 	if (bIsBreakingPallet || bIsBreakingGenerator || bIsVaulting || bIsHooking || bIsPickingUp || bIsStunned)
@@ -444,6 +432,7 @@ void ADBDKiller::FindActable()
 					Server_SetCurrenetGenerator(HitGenerator);
 					PC->ShowInteractionProgress(CurrentGenerator->CurrentRepairRate);
 				}				
+				// If Hitted generator is being reparied
 				if (CurrentGenerator->CurrentRepairRate > 0.0f)
 				{
 					if (IsLocallyControlled())
@@ -540,6 +529,7 @@ void ADBDKiller::BreakPallet()
 		PalletFrontLocation.Z = GetActorLocation().Z;
 		SetActorLocation(PalletFrontLocation, false);
 
+		// Set rotation to middle of the pallet
 		FVector PalletTriggerBoxLocation = CurrentPallet->TriggerBox->GetComponentTransform().TransformPosition(CurrentPallet->TriggerBox->GetRelativeLocation() - FVector({ 30.0f,0.0f,0.0f }));
 		FRotator PalletRotation = (PalletTriggerBoxLocation - GetActorLocation()).Rotation();
 		PalletRotation.Pitch = 0.0f;
@@ -763,7 +753,7 @@ void ADBDKiller::TryAttack()
 	bool bHitSurvivor = false;
 
 	TArray<AActor*> ActorsToIgnore;
-	ActorsToIgnore.Add(this);
+	ActorsToIgnore.Add(this); // Ignore itself
 
 	bool bHit = UKismetSystemLibrary::SphereTraceSingle(
 		GetWorld(),
@@ -1006,6 +996,7 @@ void ADBDKiller::OnSurvivorOverlapBegin(UPrimitiveComponent* OverlappedComp, AAc
 {
 	if (HasAuthority())
 	{
+		// To find a deewounded survivor
 		ADBDSurvivor* OverlappedSurvivor = Cast<ADBDSurvivor>(OtherActor);
 		if (OverlappedSurvivor)
 		{
@@ -1123,6 +1114,7 @@ void ADBDKiller::StartCarryingSurvivor()
 
 	if (CurrentTargetSurvivor)
 	{
+		// Attach survivor to CarryingSocket
 		FName SocketName(TEXT("CarryingSocket"));
 		if (GetMesh()->DoesSocketExist(SocketName))
 		{
@@ -1139,6 +1131,7 @@ void ADBDKiller::StopCarryingSurvivor()
 	bIsCarrying = false;
 	bCanPickUp = true;
 
+	// Detach survivor from CarryingSocket
 	if (CurrentTargetSurvivor)
 	{
 		FDetachmentTransformRules DetachmentRules(EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, EDetachmentRule::KeepWorld, true);
@@ -1411,6 +1404,7 @@ void ADBDKiller::DisableLeverAura()
 
 void ADBDKiller::ShowSurvivorScratchMark()
 {
+	// find all survivors to see their scratch mark
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ADBDSurvivor::StaticClass(), FoundActors);
 	for (AActor* Actor : FoundActors)

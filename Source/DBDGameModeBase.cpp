@@ -82,6 +82,8 @@ AActor* ADBDGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
 	for (AActor* Actor : AllPlayerStarts)
 	{
 		APlayerStart* StartPoint = Cast<APlayerStart>(Actor);
+
+		// To separate the spawn point between survivor and killer
 		if (StartPoint && StartPoint->PlayerStartTag == RequiredTag)
 		{
 			ValidPlayerStarts.Add(StartPoint);
@@ -93,6 +95,7 @@ AActor* ADBDGameModeBase::ChoosePlayerStart_Implementation(AController* Player)
 		return nullptr;
 	}
 
+	// Choose random spawn point
 	int32 RandomIndex = FMath::RandRange(0, ValidPlayerStarts.Num() - 1);
 
 	return ValidPlayerStarts[RandomIndex];
@@ -183,6 +186,7 @@ void ADBDGameModeBase::CheckAllGeneratorCompleted()
 			}
 		}
 
+		// Change all lever can be opened
 		TArray<AActor*> LeverActors;
 		for (TActorIterator<ADBDGateLeverSwitchActor> It(GetWorld()); It; ++It)
 		{
@@ -195,6 +199,7 @@ void ADBDGameModeBase::CheckAllGeneratorCompleted()
 			}
 		}
 
+		// Show lever's pop up to show location
 		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 		{
 			if (ADBDPlayerController* PC = Cast<ADBDPlayerController>(It->Get()))

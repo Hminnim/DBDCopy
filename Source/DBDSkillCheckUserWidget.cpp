@@ -105,14 +105,14 @@ void UDBDSkillCheckUserWidget::SetGeneratorSkillCheck()
 {
 	if (GoodCircle && GoodCircleImage)
 	{
-		GoodCircle->SetScalarParameterValue(FName("Percent"), 0.87f);
+		GoodCircle->SetScalarParameterValue(FName("Percent"), 0.87f); // Set good circle 13%
 		GoodCircleImage->SetBrushFromMaterial(GoodCircle);
 		GoodCircleImage->SetVisibility(ESlateVisibility::Visible);
 	}
 
 	if (GreatCircle && GreatCircleImage)
 	{
-		GreatCircle->SetScalarParameterValue(FName("Percent"), 0.97f);
+		GreatCircle->SetScalarParameterValue(FName("Percent"), 0.97f); // Set great circle 3%
 		GreatCircleImage->SetBrushFromMaterial(GreatCircle);
 		GreatCircleImage->SetRenderTransformAngle(-36.0f);
 		GreatCircleImage->SetVisibility(ESlateVisibility::Visible);
@@ -171,6 +171,7 @@ void UDBDSkillCheckUserWidget::SetWiggleSKillCheck()
 
 void UDBDSkillCheckUserWidget::SetStruggleSkillCheck(int8 Count)
 {
+	// more success to struggle, less success circle size
 	CurrentStruggleSuccessPercent = StruggleSuccessPercent + float(Count) * 0.012f;
 
 	if (GoodCircle && GoodCircleImage)

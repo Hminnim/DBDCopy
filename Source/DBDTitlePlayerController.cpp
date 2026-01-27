@@ -28,7 +28,7 @@ void ADBDTitlePlayerController::CreateSession()
 	UDBDGameInstance* GI = Cast<UDBDGameInstance>(GetGameInstance());
 	if (GI)
 	{
-		GI->bIsKiller = true;
+		GI->bIsKiller = true; // Killer is a host
 
 		UDBDSessionInstanceSubsystem* SessionSystem = GI->GetSubsystem<UDBDSessionInstanceSubsystem>();
 		if (SessionSystem)
@@ -43,7 +43,7 @@ void ADBDTitlePlayerController::FindSession()
 	UDBDGameInstance* GI = Cast<UDBDGameInstance>(GetGameInstance());
 	if (GI)
 	{
-		GI->bIsKiller = false;
+		GI->bIsKiller = false; // Survivor is a client
 
 		UDBDSessionInstanceSubsystem* SessionSystem = GI->GetSubsystem<UDBDSessionInstanceSubsystem>();
 		if (SessionSystem)

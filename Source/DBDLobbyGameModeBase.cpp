@@ -37,6 +37,7 @@ void ADBDLobbyGameModeBase::CheckAllPlayersReady()
 		return;
 	}
 
+	// Can't start alone. At least two players
 	if(GetNumPlayers() < 2)
 	{
 		return;
@@ -81,6 +82,7 @@ void ADBDLobbyGameModeBase::StartGame()
 {
 	bIsGameStarting = true;
 
+	// Wait to Start
 	FTimerHandle TimerHandle;
 	UWorld* World = GetWorld();
 	if (World)
@@ -117,6 +119,7 @@ void ADBDLobbyGameModeBase::StartServerTravel()
 		GI->PlayersCount = GetNumPlayers();
 	}
 
+	// travel killer's listen server
 	UWorld* World = GetWorld();
 	if (World)
 	{

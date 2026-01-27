@@ -121,6 +121,7 @@ void ADBDPlayerController::Client_AllGeneratorCompleted_Implementation(const TAr
 		}
 	}
 
+	// Show all lever's location
 	for (AActor* LeverActor : TargetLevers)
 	{
 		ShowTargetPopUpWidget(LeverActor, int32(0));
@@ -211,6 +212,7 @@ void ADBDPlayerController::HideSkillCheck()
 
 void ADBDPlayerController::StartGeneratorSkillCheck()
 {
+	// Play AlertSound first
 	if (AlertSound)
 	{
 		UGameplayStatics::PlaySound2D(this, AlertSound);
